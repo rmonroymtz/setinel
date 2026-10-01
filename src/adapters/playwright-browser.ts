@@ -82,7 +82,11 @@ class PlaywrightPageAdapter implements Page {
   async submit(selector: string, text: string): Promise<void> {
     const field = this.#page.locator(selector).first();
     await field.fill(text);
-    await Promise.all([this.#page.waitForURL((u) => u.href !== this.#page.url(), { timeout: 15_000 }).catch(() => {}), field.press("Enter")]);
+    const before = this.#page.url();
+    await Promise.all([
+      this.#page.waitForURL((u) => u.href !== before, { timeout: 15_000 }).catch(() => {}),
+      field.press("Enter"),
+    ]);
     await this.#page.waitForLoadState("load").catch(() => {});
   }
 
