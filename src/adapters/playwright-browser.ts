@@ -110,8 +110,7 @@ class PlaywrightPageAdapter implements Page {
   async waitFor(selector: string, condition: Condition, timeoutMs: number): Promise<boolean> {
     const deadline = Date.now() + timeoutMs;
     do {
-      const matches = await this.queryAll(selector);
-      if (matches.some((m) => satisfies(m, condition))) return true;
+      if (meetsCondition(await this.queryAll(selector), condition)) return true;
       await this.#page.waitForTimeout(250);
     } while (Date.now() < deadline);
     return false;
@@ -122,7 +121,12 @@ class PlaywrightPageAdapter implements Page {
   }
 }
 
-function satisfies(el: ElementInfo, condition: Condition): boolean {
+export function meetsCondition(matches: ElementInfo[], condition: Condition): boolean {
+  if (condition === "gone") return !matches.some((m) => m.visible);
+  return matches.some((m) => satisfies(m, condition));
+}
+
+function satisfies(el: ElementInfo, condition: Exclude<Condition, "gone">): boolean {
   switch (condition) {
     case "visible":
       return el.visible;

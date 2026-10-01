@@ -19,7 +19,8 @@ export interface ElementInfo {
 }
 
 /** `loaded` means an image that has decoded (naturalWidth > 0). */
-export type Condition = "visible" | "enabled" | "loaded";
+/** `gone` holds when no match is visible, e.g. loading placeholders have been replaced. */
+export type Condition = "visible" | "enabled" | "loaded" | "gone";
 
 export interface Page {
   goto(url: string): Promise<NavigationResult>;

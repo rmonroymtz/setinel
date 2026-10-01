@@ -42,7 +42,9 @@ function fakePage(site: Site): Page & { visited: string[] } {
     },
     queryAll: query,
     async waitFor(selector, condition: Condition) {
-      return (await query(selector)).some((m) =>
+      const matches = await query(selector);
+      if (condition === "gone") return !matches.some((m) => m.visible);
+      return matches.some((m) =>
         condition === "visible" ? m.visible : condition === "enabled" ? m.visible && !m.disabled : m.visible && m.naturalWidth > 0,
       );
     },
@@ -114,6 +116,17 @@ describe("search step", () => {
   it("fails when the search yields nothing", async () => {
     const r = await runJourney({ steps: [searchStep], context: ctx(fakePage({})), now: clock() });
     expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site" });
+  });
+
+  it("fails when results never finish loading and keep showing shimmer placeholders", async () => {
+    const page = fakePage({
+      elements: { "search:licuadora": { [selectors.resultLink]: [link(1)], [selectors.loadingPlaceholder]: [el()] } },
+    });
+    const context = ctx(page);
+    const r = await runJourney({ steps: [searchStep], context, now: clock() });
+    expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site" });
+    expect(r.steps[0]?.error?.message).toMatch(/still loading/);
+    expect(context.candidates).toEqual([]);
   });
 });
 

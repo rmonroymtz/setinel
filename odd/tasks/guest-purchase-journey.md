@@ -81,6 +81,14 @@ customers do, with enough evidence to act on it.
       2026-09-30. Route: inline (1 source file + its test). TDD: RED 2
       failing tests in `tests/steps/instrument.test.ts`, GREEN 122.
 
+- [x] T6c Search waits until every store's shimmer placeholders
+      (`[class*="shimmer-root-"]`) are gone before collecting candidates;
+      still shimmering after 20s is a site failure. Found through T6b
+      screenshots (step passed on skeleton cards); user request 2026-09-30.
+      Route: inline (small edits in port, adapter, selectors, search step;
+      behavior fully understood from a live DOM probe). TDD: RED 4 failing
+      tests, GREEN 126. Live: search ok, 30 results, screenshot fully rendered.
+
 ### Slice 2 — cart, checkout, notification, schedule
 
 - [ ] T7 Add to cart and check subtotal matches PDP price.

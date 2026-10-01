@@ -14,6 +14,14 @@ export const searchStep: JourneyStep<JourneyContext> = {
     if (!(await page.waitFor(selectors.resultLink, "visible", RESULTS_TIMEOUT_MS))) {
       return { status: "fail", error: { message: `Search for "${searchTerm}" returned no products` } };
     }
+    // The first store's cards show up while the others still shimmer; collecting
+    // now would miss products and pass a page a shopper sees as stuck loading.
+    if (!(await page.waitFor(selectors.loadingPlaceholder, "gone", RESULTS_TIMEOUT_MS))) {
+      return {
+        status: "fail",
+        error: { message: `Search results for "${searchTerm}" were still loading after ${RESULTS_TIMEOUT_MS / 1000}s` },
+      };
+    }
 
     const seen = new Set<string>();
     const candidates: Candidate[] = [];

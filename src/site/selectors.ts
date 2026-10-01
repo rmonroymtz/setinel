@@ -10,6 +10,11 @@
  */
 export const selectors = {
   searchInput: 'input[name="search_query"]',
+  /**
+   * Grey shimmer blocks shown while a store's results are still loading. Stores
+   * fill in one after another, so results are complete only once none is left.
+   */
+  loadingPlaceholder: '[class*="shimmer-root-"]',
   /** One anchor per product card on the search results page. */
   resultLink: '[class*="productList-item-"] a[href$=".html"]',
   pdpRoot: '[class*="productFullDetail-root-"]',
