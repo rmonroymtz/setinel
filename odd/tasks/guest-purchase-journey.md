@@ -56,7 +56,7 @@ customers do, with enough evidence to act on it.
 
 - [x] T1 Scaffold: package.json (pnpm, Node >= 24, ESM), tsconfig, vitest,
       playwright, .gitignore, README stub. Route: delegated (writer, with T2–T4).
-- [ ] T2 Domain: step result model (`ok` / `fail` / `degraded` / `skipped`)
+- [x] T2 Domain: step result model (`ok` / `fail` / `degraded` / `skipped`)
       and journey runner (sequential, stops at first failure and marks the
       rest `skipped`, measures duration, captures errors). Route: delegated.
 - [ ] T3 Seeded random selection of an available product (deterministic
@@ -97,6 +97,8 @@ customers do, with enough evidence to act on it.
 - 2026-09-30: repo initialized (`d2a27a6`), branch
   `feat/guest-purchase-journey`, feature document created.
 - T1 done (scaffold; typecheck passes, 0 tests yet, vitest 5, TypeScript 7, playwright 1.63 installed without browsers).
+- T1 commit `d74ced1`.
+- T2 done: step result model + journey runner, `failureKind` site|unobservable; 9 tests.
 
 ## Next step
 
