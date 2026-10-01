@@ -64,6 +64,11 @@ customers do, with enough evidence to act on it.
 - [x] T4 Report contract: `reporte.json` builder (run id, timestamps, seed,
       target URL, overall status, per-step results, evidence paths) and a
       disk `ArtifactStore`. Route: delegated.
+- [ ] T4b Hardening from review R3 (accepted, within acceptance criteria):
+      per-step timeout producing a fail/unobservable result so a hung step
+      still yields a report; overall status derived from step statuses (or
+      reject inconsistent input); guard error coercion in the runner catch.
+      Route: delegated (with T5–T6).
 - [ ] T5 Playwright adapter: context with real user agent, console and
       failed-request collectors, screenshot and trace on failure, selectors
       module mapped against the live site. Route: delegated (writer + live
@@ -102,8 +107,18 @@ customers do, with enough evidence to act on it.
 - T2 done: step result model + journey runner, `failureKind` site|unobservable; 9 tests.
 - T3 commit `a75d800`.
 - T3 done: mulberry32 PRNG, `pickAvailableProduct` (throws `NoAvailableProductError`), `generateSeed`; 10 tests (19 total).
-- T4 done: `buildReport` (status ok/degraded/fail/run_error), `Notifier` and `ArtifactStore` ports, `DiskArtifactStore`; 12 tests (31 total). `Browser` port deferred to T5. Commit hash: see git log (`feat(report)`).
+- T4 done: `buildReport` (status ok/degraded/fail/run_error), `Notifier` and `ArtifactStore` ports, `DiskArtifactStore`; 12 tests (31 total). `Browser` port deferred to T5. Commit `82eeea0`.
+
+- `4ecfadf`: `.atl/` (gentle-ai cache) ignored in a
+  separate chore commit.
+- Review of `d2a27a6..HEAD` (T1–T4): risk medium, consent granted, lens
+  reliability, **approved and acknowledged** (lineage
+  `review-8dd02694e49bbce7`). Reviewed boundary is now the `.atl` chore
+  commit. Non-blocking findings: report status ignores failed steps
+  (WARNING), no step timeout, error coercion can throw, `..` prefix false
+  reject, `writeJson(undefined)`. The first three became T4b; the last two
+  stay as follow-ups.
 
 ## Next step
 
-T5 Playwright adapter (introduces the `Browser` port).
+T4b, T5 and T6 in one delegated writer (live site exploration).
