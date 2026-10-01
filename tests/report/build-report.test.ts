@@ -113,6 +113,15 @@ describe("buildReport", () => {
     expect(report.status).toBe("fail");
   });
 
+  it("appends run-level evidence such as the trace after step evidence", () => {
+    const report = buildReport({
+      ...base,
+      journey: journey([step("a", "ok", { evidence: ["a.png"] })]),
+      extraEvidence: ["trace.zip", "a.png"],
+    });
+    expect(report.evidence).toEqual(["a.png", "trace.zip"]);
+  });
+
   it("round-trips through JSON unchanged", () => {
     const report = buildReport({ ...base, journey: journey([step("a", "ok")]) });
     expect(JSON.parse(JSON.stringify(report))).toEqual(report);

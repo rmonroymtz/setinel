@@ -36,9 +36,11 @@ export interface BuildReportInput {
   seed: number;
   targetUrl: string;
   journey: JourneyResult;
+  /** Run-level evidence not tied to a step, e.g. the browser trace. */
+  extraEvidence?: string[];
 }
 
-export function buildReport({ runId, seed, targetUrl, journey }: BuildReportInput): Report {
+export function buildReport({ runId, seed, targetUrl, journey, extraEvidence = [] }: BuildReportInput): Report {
   const steps = journey.steps.map(toReportStep);
   // Derived from the steps so the header can never disagree with them.
   const failure = firstFailure(journey.steps);
@@ -52,7 +54,7 @@ export function buildReport({ runId, seed, targetUrl, journey }: BuildReportInpu
     status: overallStatus(journey.steps, failure),
     ...(failure && { failure }),
     steps,
-    evidence: [...new Set(steps.flatMap((s) => s.evidence))],
+    evidence: [...new Set([...steps.flatMap((s) => s.evidence), ...extraEvidence])],
   };
 }
 

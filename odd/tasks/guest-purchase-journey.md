@@ -69,7 +69,7 @@ customers do, with enough evidence to act on it.
       still yields a report; overall status derived from step statuses (or
       reject inconsistent input); guard error coercion in the runner catch.
       Route: delegated (with T5–T6).
-- [ ] T5 Playwright adapter: context with real user agent, console and
+- [x] T5 Playwright adapter: context with real user agent, console and
       failed-request collectors, screenshot and trace on failure, selectors
       module mapped against the live site. Route: delegated (writer + live
       site exploration).
@@ -119,7 +119,9 @@ customers do, with enough evidence to act on it.
   reject, `writeJson(undefined)`. The first three became T4b; the last two
   stay as follow-ups.
 
-- T4b done (route: delegated). RED: 6 failing tests (timeout x2, hostile throw, report status x3); GREEN: 36 tests. Timeout = `site` failure (a driven browser that hangs is a site problem; unseen sites are signalled by `UnobservableError`). Report status/failure now derived from steps. Commit hash recorded below.
+- T4b done (route: delegated). RED: 6 failing tests (timeout x2, hostile throw, report status x3); GREEN: 36 tests. Timeout = `site` failure (a driven browser that hangs is a site problem; unseen sites are signalled by `UnobservableError`). Report status/failure now derived from steps. Commit `8723600`.
+
+- T5 done (route: delegated). RED: 4 new test files failing on missing modules; GREEN: 52 tests (selector hash guard needed one regex fix, then green). Port `Browser`/`Page` (goto, submit, queryAll, waitFor, screenshot, takeDiagnostics), Playwright adapter with desktop Chrome UA + es-MX, collectors (console errors as metadata only; same-site document/xhr/fetch >= 400 or failed requests degrade the step; third-party counted), screenshot on failed step, trace as run-level evidence (`extraEvidence`). Selectors in `src/site/selectors.ts`. Canonical host observed: `https://chupaprecios.com.mx` (www redirects). Commit hash recorded in the next entry.
 
 ## Next step
 
