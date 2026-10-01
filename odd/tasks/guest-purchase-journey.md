@@ -61,7 +61,7 @@ customers do, with enough evidence to act on it.
       rest `skipped`, measures duration, captures errors). Route: delegated.
 - [x] T3 Seeded random selection of an available product (deterministic
       PRNG, filters out-of-stock, empty list is a failure). Route: delegated.
-- [ ] T4 Report contract: `reporte.json` builder (run id, timestamps, seed,
+- [x] T4 Report contract: `reporte.json` builder (run id, timestamps, seed,
       target URL, overall status, per-step results, evidence paths) and a
       disk `ArtifactStore`. Route: delegated.
 - [ ] T5 Playwright adapter: context with real user agent, console and
@@ -100,8 +100,10 @@ customers do, with enough evidence to act on it.
 - T1 commit `d74ced1`.
 - T2 commit `1b0f8e6`.
 - T2 done: step result model + journey runner, `failureKind` site|unobservable; 9 tests.
+- T3 commit `a75d800`.
 - T3 done: mulberry32 PRNG, `pickAvailableProduct` (throws `NoAvailableProductError`), `generateSeed`; 10 tests (19 total).
+- T4 done: `buildReport` (status ok/degraded/fail/run_error), `Notifier` and `ArtifactStore` ports, `DiskArtifactStore`; 12 tests (31 total). `Browser` port deferred to T5. Commit hash: see git log (`feat(report)`).
 
 ## Next step
 
-T1–T4 (pure domain, no network) in one delegated writer.
+T5 Playwright adapter (introduces the `Browser` port).
