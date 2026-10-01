@@ -6,7 +6,8 @@ type InstrumentedPage = Pick<Page, "takeDiagnostics" | "screenshot">;
 
 /**
  * Wraps a step so that every step result carries the console errors and failed
- * requests seen while it ran, and a failing step leaves a screenshot behind.
+ * requests seen while it ran, plus a screenshot of the page as the step left
+ * it, so every step of a run can be inspected afterwards.
  *
  * Console errors are metadata only: a busy storefront always logs some, and
  * failing on them would make the monitor cry wolf. Failed same-site requests
@@ -31,10 +32,8 @@ export function instrumentStep<Ctx>(
 
       const diagnostics = page.takeDiagnostics();
       const evidence = [...(outcome.evidence ?? [])];
-      if (outcome.status === "fail") {
-        const shot = await screenshot(page, store, step.name);
-        if (shot) evidence.push(shot);
-      }
+      const shot = await screenshot(page, store, step.name);
+      if (shot) evidence.push(shot);
 
       const hasDiagnostics =
         diagnostics.consoleErrors.length > 0 ||

@@ -77,6 +77,10 @@ customers do, with enough evidence to act on it.
       enabled add-to-cart), sanity check for blocked/unseen pages, CLI
       `pnpm sentinel`. Route: delegated.
 
+- [x] T6b Screenshot of every step (not only failed ones), user request
+      2026-09-30. Route: inline (1 source file + its test). TDD: RED 2
+      failing tests in `tests/steps/instrument.test.ts`, GREEN 122.
+
 ### Slice 2 — cart, checkout, notification, schedule
 
 - [ ] T7 Add to cart and check subtotal matches PDP price.

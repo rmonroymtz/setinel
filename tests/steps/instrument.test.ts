@@ -22,9 +22,30 @@ function setup(diagnostics: Diagnostics = empty) {
 const inner = (run: JourneyStep<unknown>["run"]): JourneyStep<unknown> => ({ name: "search term", run });
 
 describe("instrumentStep", () => {
-  it("keeps an ok outcome clean when nothing was recorded", async () => {
-    const { page, store } = setup();
+  it("takes a screenshot of an ok step and lists it as its only evidence", async () => {
+    const { page, store, written } = setup();
     const outcome = await instrumentStep(inner(async () => ({ status: "ok" })), { page, store }).run({});
+    expect(written).toEqual(["screenshots/search-term.png"]);
+    expect(outcome).toEqual({ status: "ok", evidence: ["screenshots/search-term.png"] });
+  });
+
+  it("takes a screenshot of a degraded step after the step's own evidence", async () => {
+    const failed = { url: "https://s.test/api", resourceType: "xhr", status: 500 };
+    const { page, store } = setup({ ...empty, failedRequests: [failed] });
+    const outcome = await instrumentStep(inner(async () => ({ status: "ok", evidence: ["own.json"] })), {
+      page,
+      store,
+    }).run({});
+    expect(outcome).toMatchObject({ status: "degraded", evidence: ["own.json", "screenshots/search-term.png"] });
+  });
+
+  it("keeps an ok outcome when the screenshot cannot be taken", async () => {
+    const { store } = setup();
+    const page = {
+      takeDiagnostics: () => empty,
+      screenshot: async () => { throw new Error("page closed"); },
+    };
+    const outcome = await instrumentStep(inner(async () => {}), { page, store }).run({});
     expect(outcome).toEqual({ status: "ok", evidence: [] });
   });
 

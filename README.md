@@ -30,7 +30,7 @@ pnpm sentinel --seed 42 --term taladro --headed
 
 Flags win over environment variables. A run writes to its output directory:
 `reporte.json`, `trace.zip` (Playwright trace of the whole run) and
-`screenshots/<step>.png` for each failed step. Paths inside the report are
+`screenshots/<step>.png` for every step, taken as the step left the page. Paths inside the report are
 relative to that directory. One summary line is printed.
 
 Exit codes: `0` ok or degraded, `1` the site is broken (a step failed), `2` run
