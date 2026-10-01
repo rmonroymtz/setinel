@@ -59,7 +59,7 @@ customers do, with enough evidence to act on it.
 - [x] T2 Domain: step result model (`ok` / `fail` / `degraded` / `skipped`)
       and journey runner (sequential, stops at first failure and marks the
       rest `skipped`, measures duration, captures errors). Route: delegated.
-- [ ] T3 Seeded random selection of an available product (deterministic
+- [x] T3 Seeded random selection of an available product (deterministic
       PRNG, filters out-of-stock, empty list is a failure). Route: delegated.
 - [ ] T4 Report contract: `reporte.json` builder (run id, timestamps, seed,
       target URL, overall status, per-step results, evidence paths) and a
@@ -98,7 +98,9 @@ customers do, with enough evidence to act on it.
   `feat/guest-purchase-journey`, feature document created.
 - T1 done (scaffold; typecheck passes, 0 tests yet, vitest 5, TypeScript 7, playwright 1.63 installed without browsers).
 - T1 commit `d74ced1`.
+- T2 commit `1b0f8e6`.
 - T2 done: step result model + journey runner, `failureKind` site|unobservable; 9 tests.
+- T3 done: mulberry32 PRNG, `pickAvailableProduct` (throws `NoAvailableProductError`), `generateSeed`; 10 tests (19 total).
 
 ## Next step
 
