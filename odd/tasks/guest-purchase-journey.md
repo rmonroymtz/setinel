@@ -123,7 +123,7 @@ customers do, with enough evidence to act on it.
 
 - T5 done (route: delegated). RED: 4 new test files failing on missing modules; GREEN: 52 tests (selector hash guard needed one regex fix, then green). Port `Browser`/`Page` (goto, submit, queryAll, waitFor, screenshot, takeDiagnostics), Playwright adapter with desktop Chrome UA + es-MX, collectors (console errors as metadata only; same-site document/xhr/fetch >= 400 or failed requests degrade the step; third-party counted), screenshot on failed step, trace as run-level evidence (`extraEvidence`). Selectors in `src/site/selectors.ts`. Canonical host observed: `https://chupaprecios.com.mx` (www redirects). Commit `3fdebf2`.
 
-- T6 done (route: delegated). RED: 4 new test files failing on missing modules; GREEN: 120 tests. Steps home, search, pick-product, pdp with sanity classification (blocked/unseen = unobservable), CLI `pnpm sentinel` (exit 0 ok/degraded, 1 site fail, 2 run_error). Live runs against production: OK with seeds 1, 987654, 31337; unreachable host gives run_error exit 2. Availability is not shown on the listing; PDP decides (button enabled after hydration, up to 20s). Commit hash recorded in the next entry.
+- T6 done (route: delegated). RED: 4 new test files failing on missing modules; GREEN: 120 tests. Steps home, search, pick-product, pdp with sanity classification (blocked/unseen = unobservable), CLI `pnpm sentinel` (exit 0 ok/degraded, 1 site fail, 2 run_error). Live runs against production: OK with seeds 1, 987654, 31337; unreachable host gives run_error exit 2. Availability is not shown on the listing; PDP decides (button enabled after hydration, up to 20s). Commit `c5e619b`.
 
 ## Next step
 
