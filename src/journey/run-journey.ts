@@ -29,10 +29,25 @@ export interface RunJourneyInput<Ctx> {
   context: Ctx;
   /** Epoch milliseconds; injected so tests are deterministic. */
   now: () => number;
+  /**
+   * Per-step budget. A step that does not settle in time becomes a `site`
+   * failure: a page that hangs for a browser we could drive is a site problem,
+   * while "could not see the site" is reported explicitly by the step itself
+   * (UnobservableError). Without a value, steps are not time-limited.
+   */
+  stepTimeoutMs?: number;
+  /** Schedules `fn` after `ms` and returns a canceller; injected so tests never wait. */
+  setTimer?: (fn: () => void, ms: number) => () => void;
 }
 
+const defaultSetTimer = (fn: () => void, ms: number) => {
+  const id = setTimeout(fn, ms);
+  return () => clearTimeout(id);
+};
+
 export async function runJourney<Ctx>(input: RunJourneyInput<Ctx>): Promise<JourneyResult> {
-  const { steps, context, now } = input;
+  const { steps, context, now, stepTimeoutMs, setTimer = defaultSetTimer } = input;
+  const limit = stepTimeoutMs === undefined ? undefined : { ms: stepTimeoutMs, setTimer };
   const startedAt = now();
   const results: StepResult[] = [];
   let failure: JourneyResult["failure"];
@@ -44,7 +59,7 @@ export async function runJourney<Ctx>(input: RunJourneyInput<Ctx>): Promise<Jour
     }
 
     const stepStart = now();
-    const result = await executeStep(step, context, stepStart, now);
+    const result = await executeStep(step, context, stepStart, now, limit);
     results.push(result);
     if (result.status === "fail") {
       failure = { step: step.name, kind: result.failureKind ?? "site" };
@@ -59,9 +74,10 @@ async function executeStep<Ctx>(
   context: Ctx,
   startedAt: number,
   now: () => number,
+  limit: { ms: number; setTimer: NonNullable<RunJourneyInput<Ctx>["setTimer"]> } | undefined,
 ): Promise<StepResult> {
   try {
-    const outcome = (await step.run(context)) ?? { status: "ok" };
+    const outcome = (await withTimeout(step, step.run(context), limit)) ?? { status: "ok" };
     return build(step.name, startedAt, now, {
       status: outcome.status,
       ...(outcome.error && { error: outcome.error }),
@@ -77,6 +93,24 @@ async function executeStep<Ctx>(
       evidence: [],
     });
   }
+}
+
+function withTimeout<Ctx, T>(
+  step: JourneyStep<Ctx>,
+  work: Promise<T>,
+  limit: { ms: number; setTimer: NonNullable<RunJourneyInput<Ctx>["setTimer"]> } | undefined,
+): Promise<T> {
+  if (!limit) return work;
+  let cancel = () => {};
+  const timeout = new Promise<never>((_, reject) => {
+    cancel = limit.setTimer(
+      () => reject(new Error(`Step "${step.name}" timed out after ${limit.ms}ms`)),
+      limit.ms,
+    );
+  });
+  // The abandoned step may reject later; swallow it so it is not an unhandled rejection.
+  work.catch(() => {});
+  return Promise.race([work, timeout]).finally(cancel);
 }
 
 function build(
@@ -95,5 +129,10 @@ function toStepError(thrown: unknown): StepError {
   if (thrown instanceof Error) {
     return { message: thrown.message, ...(thrown.stack && { detail: thrown.stack }) };
   }
-  return { message: String(thrown) };
+  try {
+    return { message: String(thrown) };
+  } catch {
+    // String() throws for values such as null-prototype objects.
+    return { message: "Step threw a value that could not be described" };
+  }
 }

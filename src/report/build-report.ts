@@ -40,6 +40,8 @@ export interface BuildReportInput {
 
 export function buildReport({ runId, seed, targetUrl, journey }: BuildReportInput): Report {
   const steps = journey.steps.map(toReportStep);
+  // Derived from the steps so the header can never disagree with them.
+  const failure = firstFailure(journey.steps);
   return {
     schemaVersion: REPORT_SCHEMA_VERSION,
     runId,
@@ -47,16 +49,21 @@ export function buildReport({ runId, seed, targetUrl, journey }: BuildReportInpu
     finishedAt: new Date(journey.finishedAt).toISOString(),
     seed,
     targetUrl,
-    status: overallStatus(journey),
-    ...(journey.failure && { failure: journey.failure }),
+    status: overallStatus(journey.steps, failure),
+    ...(failure && { failure }),
     steps,
     evidence: [...new Set(steps.flatMap((s) => s.evidence))],
   };
 }
 
-function overallStatus(journey: JourneyResult): OverallStatus {
-  if (journey.failure) return journey.failure.kind === "unobservable" ? "run_error" : "fail";
-  return journey.steps.some((s) => s.status === "degraded") ? "degraded" : "ok";
+function firstFailure(steps: StepResult[]): Report["failure"] {
+  const failed = steps.find((s) => s.status === "fail");
+  return failed && { step: failed.name, kind: failed.failureKind ?? "site" };
+}
+
+function overallStatus(steps: StepResult[], failure: Report["failure"]): OverallStatus {
+  if (failure) return failure.kind === "unobservable" ? "run_error" : "fail";
+  return steps.some((s) => s.status === "degraded") ? "degraded" : "ok";
 }
 
 function toReportStep(step: StepResult): ReportStep {

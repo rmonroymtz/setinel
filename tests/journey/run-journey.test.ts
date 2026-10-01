@@ -167,4 +167,62 @@ describe("runJourney", () => {
 
     expect(result.steps[0]?.error?.message).toBe("plain string");
   });
+
+  it("falls back to a safe message when coercing a thrown value throws", async () => {
+    const hostile = Object.create(null);
+    const result = await runJourney({
+      steps: [
+        step("a", async () => {
+          throw hostile;
+        }),
+      ],
+      context: { log: [] },
+      now: fakeClock(),
+    });
+
+    expect(result.steps[0]).toMatchObject({ status: "fail", failureKind: "site" });
+    expect(result.steps[0]?.error?.message).toBe("Step threw a value that could not be described");
+  });
+
+  describe("step timeout", () => {
+    // Fires the timeout on the next tick; never waits real seconds.
+    const instantTimer = (fn: () => void) => {
+      const id = setTimeout(fn, 0);
+      return () => clearTimeout(id);
+    };
+    const never = () => new Promise<void>(() => {});
+
+    it("turns a hung step into a site failure and still skips the rest", async () => {
+      const result = await runJourney({
+        steps: [step("hang", never), step("next", async () => {})],
+        context: { log: [] },
+        now: fakeClock(),
+        stepTimeoutMs: 5_000,
+        setTimer: instantTimer,
+      });
+
+      expect(result.steps[0]).toMatchObject({
+        name: "hang",
+        status: "fail",
+        failureKind: "site",
+        error: { message: "Step \"hang\" timed out after 5000ms" },
+      });
+      expect(result.steps[1]?.status).toBe("skipped");
+      expect(result.failure).toEqual({ step: "hang", kind: "site" });
+    });
+
+    it("does not fire for a step that settles in time and cancels the timer", async () => {
+      let cancelled = 0;
+      const result = await runJourney({
+        steps: [step("fast", async () => {})],
+        context: { log: [] },
+        now: fakeClock(),
+        stepTimeoutMs: 5_000,
+        setTimer: () => () => void cancelled++,
+      });
+
+      expect(result.steps[0]?.status).toBe("ok");
+      expect(cancelled).toBe(1);
+    });
+  });
 });

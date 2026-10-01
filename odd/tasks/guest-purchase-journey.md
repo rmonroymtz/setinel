@@ -64,7 +64,7 @@ customers do, with enough evidence to act on it.
 - [x] T4 Report contract: `reporte.json` builder (run id, timestamps, seed,
       target URL, overall status, per-step results, evidence paths) and a
       disk `ArtifactStore`. Route: delegated.
-- [ ] T4b Hardening from review R3 (accepted, within acceptance criteria):
+- [x] T4b Hardening from review R3 (accepted, within acceptance criteria):
       per-step timeout producing a fail/unobservable result so a hung step
       still yields a report; overall status derived from step statuses (or
       reject inconsistent input); guard error coercion in the runner catch.
@@ -118,6 +118,8 @@ customers do, with enough evidence to act on it.
   (WARNING), no step timeout, error coercion can throw, `..` prefix false
   reject, `writeJson(undefined)`. The first three became T4b; the last two
   stay as follow-ups.
+
+- T4b done (route: delegated). RED: 6 failing tests (timeout x2, hostile throw, report status x3); GREEN: 36 tests. Timeout = `site` failure (a driven browser that hangs is a site problem; unseen sites are signalled by `UnobservableError`). Report status/failure now derived from steps. Commit hash recorded below.
 
 ## Next step
 

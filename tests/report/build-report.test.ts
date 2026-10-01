@@ -82,6 +82,20 @@ describe("buildReport", () => {
     expect(report.failure).toEqual({ step: "a", kind: "unobservable" });
   });
 
+  it("derives the status from steps when the journey carries no failure", () => {
+    const report = buildReport({
+      ...base,
+      journey: journey([step("a", "fail", { failureKind: "unobservable" })]),
+    });
+    expect(report.status).toBe("run_error");
+    expect(report.failure).toEqual({ step: "a", kind: "unobservable" });
+  });
+
+  it("treats a failed step without failureKind as a site failure", () => {
+    const report = buildReport({ ...base, journey: journey([step("a", "fail")]) });
+    expect(report.status).toBe("fail");
+  });
+
   it("omits failure when nothing failed", () => {
     const report = buildReport({ ...base, journey: journey([step("a", "ok")]) });
     expect("failure" in report).toBe(false);
@@ -96,6 +110,7 @@ describe("buildReport", () => {
       ]),
     });
     expect(report.evidence).toEqual(["a.png", "trace.zip", "b.png"]);
+    expect(report.status).toBe("fail");
   });
 
   it("round-trips through JSON unchanged", () => {
