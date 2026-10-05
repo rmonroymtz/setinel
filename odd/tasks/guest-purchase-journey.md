@@ -103,7 +103,11 @@ customers do, with enough evidence to act on it.
       every run. Route: delegated writer. Commit `c3ae22b`.
 - [x] T10 `bitbucket-pipelines.yml` custom pipeline + schedule instructions.
       Route: delegated writer. Commits `7605fd6`, `d83f033`.
-- [ ] T11 Heartbeat: alert when the daily run did not happen.
+- [x] T11 Heartbeat: alert when the daily run did not happen. User decision
+      2026-10-05: no automated heartbeat; the team treats a missing daily
+      Slack message as the alert (options considered: external dead man's
+      switch, second Bitbucket schedule, existing monitoring). Documented in
+      README "Missing daily message". Route: inline (passive docs).
 
 ### Later
 
@@ -163,4 +167,8 @@ customers do, with enough evidence to act on it.
 
 ## Next step
 
-T11: heartbeat, alert when the daily run did not happen.
+Slice 2 complete. Open follow-ups before delivery: browser launch failure is
+not notified to Slack (with the T11 decision, that failure is silent),
+safeClick refusal should be a run error, `..` prefix false reject,
+`writeJson(undefined)`, `.pnpm-store` in .gitignore. Then push and the first
+pull request (chain strategy to be asked). T12 stays for later.

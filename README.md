@@ -170,6 +170,15 @@ green; `1` (the site is broken) and `2` (run error: the site could not be
 observed, or the tool failed) are red. The artifacts and the Slack message
 are produced either way.
 
+### Missing daily message
+
+Sentinel posts to Slack on every run, including successful ones. There is no
+automated heartbeat: if no Sentinel message reaches the channel by about
+07:00 America/Mexico_City, assume the daily run did not happen (schedule
+disabled, Pipelines unavailable, build minutes exhausted, or the tool failed
+before writing its report). Check the schedule and the latest run in
+Pipelines, and run `custom: sentinel-daily` manually if needed.
+
 ## Development
 
 ```
