@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReport, REPORT_FILENAME } from "../../src/report/build-report.ts";
+import { buildReport, buildRunErrorReport, REPORT_FILENAME } from "../../src/report/build-report.ts";
 import type { JourneyResult } from "../../src/journey/run-journey.ts";
 import type { StepResult } from "../../src/journey/step-result.ts";
 
@@ -125,5 +125,89 @@ describe("buildReport", () => {
   it("round-trips through JSON unchanged", () => {
     const report = buildReport({ ...base, journey: journey([step("a", "ok")]) });
     expect(JSON.parse(JSON.stringify(report))).toEqual(report);
+  });
+});
+
+describe("buildRunErrorReport", () => {
+  const base = {
+    runId: "20260930T120000Z",
+    seed: 42,
+    targetUrl: "https://chupaprecios.com.mx",
+    startedAt: Date.parse("2026-09-30T12:00:00.000Z"),
+  };
+
+  it("reports a run that failed before the journey started as a run error", () => {
+    const report = buildRunErrorReport({
+      ...base,
+      stages: [
+        {
+          name: "start-browser",
+          message: "Could not start the browser: Executable doesn't exist",
+          detail: "stack",
+          failedAt: Date.parse("2026-09-30T12:00:02.000Z"),
+        },
+      ],
+    });
+
+    expect(report).toEqual({
+      schemaVersion: 1,
+      runId: "20260930T120000Z",
+      startedAt: "2026-09-30T12:00:00.000Z",
+      finishedAt: "2026-09-30T12:00:02.000Z",
+      seed: 42,
+      targetUrl: "https://chupaprecios.com.mx",
+      status: "run_error",
+      failure: { step: "start-browser", kind: "unobservable" },
+      steps: [
+        {
+          name: "start-browser",
+          status: "fail",
+          startedAt: "2026-09-30T12:00:00.000Z",
+          durationMs: 2000,
+          error: { message: "Could not start the browser: Executable doesn't exist", detail: "stack" },
+          failureKind: "unobservable",
+          evidence: [],
+        },
+      ],
+      evidence: [],
+    });
+  });
+
+  it("keeps the journey already walked and appends the failing stage after it", () => {
+    const walked = journey(
+      [step("home", "ok", { evidence: ["screenshots/home.png"] }), step("search", "fail", { failureKind: "site" })],
+      { step: "search", kind: "site" },
+    );
+
+    const report = buildRunErrorReport({
+      ...base,
+      journey: walked,
+      stages: [{ name: "save-report", message: "Could not write reporte.json: EACCES", failedAt: Date.parse("2026-09-30T12:00:06.000Z") }],
+      extraEvidence: ["trace.zip"],
+    });
+
+    expect(report.steps.map((s) => `${s.name}:${s.status}`)).toEqual(["home:ok", "search:fail", "save-report:fail"]);
+    expect(report.steps[2]).toMatchObject({ startedAt: "2026-09-30T12:00:05.000Z", durationMs: 1000, failureKind: "unobservable" });
+    // The first failure still decides the header: the site broke before the report did.
+    expect(report.status).toBe("fail");
+    expect(report.failure).toEqual({ step: "search", kind: "site" });
+    expect(report.evidence).toEqual(["screenshots/home.png", "trace.zip"]);
+    expect(report.finishedAt).toBe("2026-09-30T12:00:06.000Z");
+  });
+
+  it("chains several failed stages, each starting where the previous one failed", () => {
+    const report = buildRunErrorReport({
+      ...base,
+      stages: [
+        { name: "start-browser", message: "no browser", failedAt: Date.parse("2026-09-30T12:00:01.000Z") },
+        { name: "save-report", message: "no disk", failedAt: Date.parse("2026-09-30T12:00:04.000Z") },
+      ],
+    });
+
+    expect(report.steps.map((s) => [s.name, s.startedAt, s.durationMs])).toEqual([
+      ["start-browser", "2026-09-30T12:00:00.000Z", 1000],
+      ["save-report", "2026-09-30T12:00:01.000Z", 3000],
+    ]);
+    expect(report.failure).toEqual({ step: "start-browser", kind: "unobservable" });
   });
 });

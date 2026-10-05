@@ -116,6 +116,13 @@ The message shows:
 A Slack problem (HTTP error, network error, no answer within 10 seconds) is
 printed to stderr and never changes the report or the exit code.
 
+A run that started always reports and notifies, even when it fails outside the
+journey: if the browser cannot start, or something else throws before the
+report exists, `reporte.json` holds a run error whose failing pseudo-step names
+what could not be done (`start-browser`, `run`). If `reporte.json` itself cannot
+be written, the message is still sent with a `save-report` failing step and the
+exit code is `2`.
+
 Console errors are recorded in step metadata only. Failed same-site
 document/xhr/fetch requests (HTTP >= 400 or network failure) degrade the step;
 third-party failures are only counted.
@@ -175,8 +182,8 @@ are produced either way.
 Sentinel posts to Slack on every run, including successful ones. There is no
 automated heartbeat: if no Sentinel message reaches the channel by about
 07:00 America/Mexico_City, assume the daily run did not happen (schedule
-disabled, Pipelines unavailable, build minutes exhausted, or the tool failed
-before writing its report). Check the schedule and the latest run in
+disabled, Pipelines unavailable, build minutes exhausted, Slack unreachable,
+or the process died before it could notify). Check the schedule and the latest run in
 Pipelines, and run `custom: sentinel-daily` manually if needed.
 
 ## Development
