@@ -47,6 +47,25 @@ describe("notifyRun", () => {
     expect(output()).not.toContain("secret-token");
   });
 
+  it("links the evidence to the Bitbucket pipeline run when running in Pipelines", async () => {
+    const fetchFn = vi.fn<typeof fetch>(async () => new Response("ok"));
+    const { run } = setup(
+      { SLACK_WEBHOOK_URL: WEBHOOK, BITBUCKET_BUILD_NUMBER: "42", BITBUCKET_REPO_FULL_NAME: "acme/sentinel" },
+      fetchFn,
+    );
+    await run();
+    const body = String(fetchFn.mock.calls[0]?.[1]?.body);
+    expect(body).toContain("https://bitbucket.org/acme/sentinel/pipelines/results/42");
+    expect(body).toContain("runs/run-1/reporte.json");
+  });
+
+  it("keeps local evidence paths only outside CI", async () => {
+    const fetchFn = vi.fn<typeof fetch>(async () => new Response("ok"));
+    const { run } = setup({ SLACK_WEBHOOK_URL: WEBHOOK }, fetchFn);
+    await run();
+    expect(String(fetchFn.mock.calls[0]?.[1]?.body)).not.toContain("bitbucket.org");
+  });
+
   it("logs a Slack failure to stderr and never throws", async () => {
     const fetchFn = vi.fn<typeof fetch>(() => {
       throw new Error(`boom calling ${WEBHOOK}`);

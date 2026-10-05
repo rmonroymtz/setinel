@@ -1,5 +1,6 @@
 import { SlackWebhookNotifier } from "../adapters/slack-webhook-notifier.ts";
 import type { Report } from "../report/build-report.ts";
+import { ciEvidenceLink } from "./ci-evidence-link.ts";
 
 export interface NotifyRunOptions {
   env: Record<string, string | undefined>;
@@ -22,7 +23,7 @@ export async function notifyRun(report: Report, options: NotifyRunOptions): Prom
     return;
   }
   try {
-    await new SlackWebhookNotifier({ webhookUrl, evidenceDir, ...(fetchFn && { fetch: fetchFn }) }).notify(report);
+    await new SlackWebhookNotifier({ webhookUrl, evidenceDir, evidenceLink: ciEvidenceLink(env), ...(fetchFn && { fetch: fetchFn }) }).notify(report);
     log("sentinel: Slack notification sent");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

@@ -164,6 +164,21 @@ describe("formatSlackMessage", () => {
     expect(text).toContain("runs/20261005T120000Z/trace.zip");
   });
 
+  it("links the evidence to the CI run when one is given, keeping the artifact paths", () => {
+    const message = formatSlackMessage(report(), {
+      ...options,
+      evidenceLink: { url: "https://bitbucket.org/acme/sentinel/pipelines/results/42", label: "Bitbucket pipeline #42 (artifacts)" },
+    });
+    const evidence = sectionTexts(message).find((t) => t.includes("Evidence")) ?? "";
+    expect(evidence).toContain("<https://bitbucket.org/acme/sentinel/pipelines/results/42|Bitbucket pipeline #42 (artifacts)>");
+    expect(evidence).toContain("runs/20261005T120000Z/reporte.json");
+  });
+
+  it("shows only local paths when there is no CI run", () => {
+    const evidence = sectionTexts(formatSlackMessage(report(), options)).find((t) => t.includes("Evidence")) ?? "";
+    expect(evidence).not.toContain("http");
+  });
+
   it("truncates very long error messages to Slack's block text limit", () => {
     const message = formatSlackMessage(
       report({

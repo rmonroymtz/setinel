@@ -34,6 +34,13 @@ describe("SlackWebhookNotifier", () => {
     expect(init?.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it("passes the CI evidence link to the message", async () => {
+    const fetchFn = okFetch();
+    const evidenceLink = { url: "https://bitbucket.org/acme/sentinel/pipelines/results/42", label: "Bitbucket pipeline #42" };
+    await new SlackWebhookNotifier({ webhookUrl: WEBHOOK, evidenceDir: "runs/run-1", evidenceLink, fetch: fetchFn }).notify(report);
+    expect(String(fetchFn.mock.calls[0]?.[1]?.body)).toContain("<https://bitbucket.org/acme/sentinel/pipelines/results/42|Bitbucket pipeline #42>");
+  });
+
   it("rejects on a non-2xx answer without exposing the webhook URL", async () => {
     const fetchFn = vi.fn<typeof fetch>(async () => new Response("invalid_payload", { status: 400 }));
     const notifier = new SlackWebhookNotifier({ webhookUrl: WEBHOOK, evidenceDir: "runs/run-1", fetch: fetchFn });

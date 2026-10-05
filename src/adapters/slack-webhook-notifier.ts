@@ -1,6 +1,6 @@
 import type { Notifier } from "../ports/notifier.ts";
 import type { Report } from "../report/build-report.ts";
-import { formatSlackMessage } from "./slack-message.ts";
+import { formatSlackMessage, type EvidenceLink } from "./slack-message.ts";
 
 export const SLACK_TIMEOUT_MS = 10_000;
 
@@ -9,6 +9,8 @@ export interface SlackWebhookNotifierOptions {
   webhookUrl: string;
   /** Where the reader finds the run's evidence, e.g. `runs/<runId>`. */
   evidenceDir: string;
+  /** A page holding the evidence, e.g. the CI run with the artifacts. */
+  evidenceLink?: EvidenceLink;
   fetch?: typeof fetch;
   timeoutMs?: number;
 }
@@ -21,17 +23,19 @@ export class SlackWebhookNotifier implements Notifier {
   readonly timeoutMs: number;
   readonly #webhookUrl: string;
   readonly #evidenceDir: string;
+  readonly #evidenceLink: EvidenceLink | undefined;
   readonly #fetch: typeof fetch;
 
-  constructor({ webhookUrl, evidenceDir, fetch: fetchFn = fetch, timeoutMs = SLACK_TIMEOUT_MS }: SlackWebhookNotifierOptions) {
+  constructor({ webhookUrl, evidenceDir, evidenceLink, fetch: fetchFn = fetch, timeoutMs = SLACK_TIMEOUT_MS }: SlackWebhookNotifierOptions) {
     this.#webhookUrl = webhookUrl;
     this.#evidenceDir = evidenceDir;
+    this.#evidenceLink = evidenceLink;
     this.#fetch = fetchFn;
     this.timeoutMs = timeoutMs;
   }
 
   async notify(report: Report): Promise<void> {
-    const body = JSON.stringify(formatSlackMessage(report, { evidenceDir: this.#evidenceDir }));
+    const body = JSON.stringify(formatSlackMessage(report, { evidenceDir: this.#evidenceDir, evidenceLink: this.#evidenceLink }));
     let response: Response;
     try {
       response = await this.#fetch(this.#webhookUrl, {

@@ -160,7 +160,10 @@ Setup, once per repository:
 (`reporte.json`, `screenshots/`, `trace.zip`) as the artifact "Sentinel run
 evidence", on success and on failure (`capture-on: always`). Open the run in
 Pipelines > select the run > **Artifacts** tab. Bitbucket keeps artifacts for
-14 days; download anything you need to keep longer.
+14 days; download anything you need to keep longer. When the run happens in
+Pipelines, the Slack message's evidence line links to that run page
+(`https://bitbucket.org/<workspace>/<repo>/pipelines/results/<build number>`);
+outside Pipelines it shows the local paths only.
 
 **Result colour**: the step uses the CLI exit code. `0` (ok or degraded) is
 green; `1` (the site is broken) and `2` (run error: the site could not be

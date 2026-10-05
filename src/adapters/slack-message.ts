@@ -28,9 +28,17 @@ export interface SlackMessage {
   blocks: SlackBlock[];
 }
 
+/** A page where the run's evidence can be opened, e.g. the CI run holding the artifacts. */
+export interface EvidenceLink {
+  url: string;
+  label: string;
+}
+
 export interface SlackMessageOptions {
   /** The run output directory as the reader should find it, e.g. `runs/<runId>`. */
   evidenceDir: string;
+  /** When set, the evidence line links to it; the paths still name the files inside. */
+  evidenceLink?: EvidenceLink;
 }
 
 const STATUS_LABEL: Record<OverallStatus, { emoji: string; label: string; meaning: string }> = {
@@ -53,7 +61,7 @@ const FAILURE_KIND_LABEL: Record<FailureKind, string> = {
 };
 
 /** Pure: renders a run report as a Slack Block Kit message with a plain fallback. */
-export function formatSlackMessage(report: Report, { evidenceDir }: SlackMessageOptions): SlackMessage {
+export function formatSlackMessage(report: Report, { evidenceDir, evidenceLink }: SlackMessageOptions): SlackMessage {
   const status = STATUS_LABEL[report.status];
   const product = pickedProduct(report.steps);
   const duration = formatDuration(Date.parse(report.finishedAt) - Date.parse(report.startedAt));
@@ -82,7 +90,7 @@ export function formatSlackMessage(report: Report, { evidenceDir }: SlackMessage
   if (problems.length > 0) {
     blocks.push({ type: "section", text: mrkdwn(truncate(problems.join("\n\n"), SLACK_SECTION_LIMIT)) });
   }
-  blocks.push({ type: "context", elements: [mrkdwn(truncate(evidenceLine(report, evidenceDir), SLACK_SECTION_LIMIT))] });
+  blocks.push({ type: "context", elements: [mrkdwn(truncate(evidenceLine(report, evidenceDir, evidenceLink), SLACK_SECTION_LIMIT))] });
 
   const why = failed ? ` · ${failed.name}: ${failed.error?.message ?? "failed"}` : "";
   const text = truncate(
@@ -99,14 +107,15 @@ function describeProblem(step: ReportStep): string {
   return `${STEP_EMOJI[step.status]} *${label}* \`${escape(step.name)}\`${kind}\n> ${message.replace(/\n/g, "\n> ")}`;
 }
 
-function evidenceLine(report: Report, dir: string): string {
+function evidenceLine(report: Report, dir: string, evidenceLink: EvidenceLink | undefined): string {
   const base = dir.replace(/\/+$/, "");
   const parts = [`report \`${escape(`${base}/${REPORT_FILENAME}`)}\``];
   if (report.evidence.some((p) => p.startsWith("screenshots/")) || report.steps.some((s) => s.evidence.length > 0)) {
     parts.push(`screenshots \`${escape(`${base}/screenshots/`)}\``);
   }
   if (report.evidence.includes("trace.zip")) parts.push(`trace \`${escape(`${base}/trace.zip`)}\``);
-  return `:file_folder: Evidence: ${parts.join(" · ")}`;
+  const where = evidenceLink ? `${link(evidenceLink.url, evidenceLink.label)} · ` : "";
+  return `:file_folder: Evidence: ${where}${parts.join(" · ")}`;
 }
 
 /** The product the product page opened, else the first pick. */
