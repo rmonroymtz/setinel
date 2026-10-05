@@ -87,9 +87,9 @@ selector or element on the order-placing denylist in `src/site/selectors.ts`
 browser aborts any request that would place an order or set a payment method:
 GraphQL mutations such as `placeOrder` or `setPaymentMethodOnCart`, and REST
 writes such as `POST /rest/V1/guest-carts/<id>/payment-information` (patterns
-in `src/site/order-guard.ts`). If that network guard ever blocks a request, the
-monitor itself tried to buy: the run ends as a run error (exit code 2), never as
-a site failure. The cart's checkout button also reads "Finalizar compra", so the
+in `src/site/order-guard.ts`). If either guard ever refuses a click or blocks a
+request, the monitor itself tried to buy: the run ends as a run error (exit
+code 2), never as a site failure. The cart's checkout button also reads "Finalizar compra", so the
 journey opens `/checkout` by URL instead of clicking it.
 
 ### Slack notification
