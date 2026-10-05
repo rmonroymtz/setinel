@@ -5,8 +5,8 @@ before payment, writes a machine-readable `reporte.json` and notifies
 Slack. Failure detection is deterministic; there is no AI in this tool.
 
 Status: the journey covers home, search, a seeded random product pick, the
-product page, a guest cart and guest checkout up to the payment screen, and a
-Slack notification. Scheduling is still to come.
+product page, a guest cart and guest checkout up to the payment screen, a
+Slack notification, and a daily Bitbucket Pipelines schedule.
 
 ## Requirements
 
@@ -123,6 +123,49 @@ third-party failures are only counted.
 Selectors live in `src/site/selectors.ts` (class names carry a build hash, so
 they are anchored by prefix, role or text). The browser presents a real desktop
 Chrome user agent because the site blocks Playwright's default one.
+
+## Scheduling in Bitbucket
+
+`bitbucket-pipelines.yml` defines two pipelines, both on the official
+Playwright image `mcr.microsoft.com/playwright:v1.63.0-noble` (Node 24 and the
+Chromium that matches Playwright 1.63.0; bump the tag together with the
+`playwright` dependency). pnpm 12.4.1 comes from Corepack (pinned in the YAML)
+and installs with `--frozen-lockfile` and a cached store.
+
+- `default`: every push to any branch runs `pnpm typecheck` and `pnpm test`
+  (the order-guard wiring test needs the image's Chromium).
+- `custom: sentinel-daily`: runs `pnpm sentinel` against production. Custom
+  pipelines never run on a push; only a schedule or a person starts them.
+
+Setup, once per repository:
+
+1. **Enable Pipelines**: Repository settings > Pipelines > Settings > Enable
+   Pipelines (the YAML must be on the branch you schedule).
+2. **Add the Slack secret**: Repository settings > Pipelines > Repository
+   variables > add `SLACK_WEBHOOK_URL` with the webhook URL and tick
+   **Secured**. Secured values are masked in logs; the tool never prints it.
+   Without it the run still works and skips Slack.
+3. **Create the schedule**: Pipelines > Schedules > New schedule. Branch
+   `main`, pipeline `custom: sentinel-daily`, interval **Daily**, time
+   **12:00 UTC** (the UI shows times in your browser's time zone but runs them
+   in UTC). 12:00 UTC is 06:00 in America/Mexico_City all year: Mexico
+   abolished daylight saving time in October 2022 (Mexico City stays at
+   UTC-6). Schedules live in the Bitbucket UI, not in the YAML.
+
+**Run it by hand**: Pipelines > Run pipeline > pick the branch and
+`custom: sentinel-daily` > Run (also available from the branch or commit
+"..." menu). Write access is required.
+
+**Evidence**: every run of `sentinel-daily` uploads `runs/**`
+(`reporte.json`, `screenshots/`, `trace.zip`) as the artifact "Sentinel run
+evidence", on success and on failure (`capture-on: always`). Open the run in
+Pipelines > select the run > **Artifacts** tab. Bitbucket keeps artifacts for
+14 days; download anything you need to keep longer.
+
+**Result colour**: the step uses the CLI exit code. `0` (ok or degraded) is
+green; `1` (the site is broken) and `2` (run error: the site could not be
+observed, or the tool failed) are red. The artifacts and the Slack message
+are produced either way.
 
 ## Development
 
