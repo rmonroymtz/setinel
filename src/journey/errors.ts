@@ -31,3 +31,21 @@ export class OrderPlacementBlockedError extends UnobservableError {
     this.requests = [...requests];
   }
 }
+
+/**
+ * `safeClick` refused to click a control that reads like placing the order or
+ * paying, before anything was sent. As with OrderPlacementBlockedError, only the
+ * monitor can have aimed at that control, so this is a monitor bug and a run
+ * error (exit code 2), never a site failure.
+ */
+export class OrderPlacementRefusedError extends UnobservableError {
+  readonly selector: string;
+
+  constructor(selector: string, reason: string) {
+    super(
+      `Refused to click ${selector}: ${reason}. The journey never places an order or starts a payment; trying to is a monitor bug, not a site failure`,
+    );
+    this.name = "OrderPlacementRefusedError";
+    this.selector = selector;
+  }
+}

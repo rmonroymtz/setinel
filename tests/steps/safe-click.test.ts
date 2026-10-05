@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { OrderPlacementRefusedError as RefusedFromErrors, UnobservableError } from "../../src/journey/errors.ts";
+import { runJourney } from "../../src/journey/run-journey.ts";
 import type { ElementInfo, Page } from "../../src/ports/browser.ts";
 import { OrderPlacementRefusedError, safeClick } from "../../src/steps/safe-click.ts";
 
@@ -27,5 +29,20 @@ describe("safeClick", () => {
     const { p, clicked } = page([el("Siguiente")]);
     await safeClick(p, '[class*="block-nextButton-"]');
     expect(clicked).toEqual(['[class*="block-nextButton-"]']);
+  });
+
+  it("signals a refusal as a run error (a monitor bug), not a site failure", async () => {
+    const { p } = page([el("Pagar ahora")]);
+    const refusal = await safeClick(p, '[class*="block-nextButton-"]').catch((e: unknown) => e);
+    expect(refusal).toBeInstanceOf(UnobservableError);
+    expect(refusal).toBeInstanceOf(RefusedFromErrors);
+    expect((refusal as Error).name).toBe("OrderPlacementRefusedError");
+
+    const journey = await runJourney({
+      steps: [{ name: "checkout", run: () => safeClick(p, '[class*="block-nextButton-"]') }],
+      context: {},
+      now: () => 0,
+    });
+    expect(journey.failure).toEqual({ step: "checkout", kind: "unobservable" });
   });
 });
