@@ -10,4 +10,6 @@ export interface JourneyContext {
   /** Filled by the search step. `available` is flipped off when the PDP shows the product sold out. */
   candidates: Candidate[];
   product?: Candidate;
+  /** What the product page showed for the picked product, set by the pdp step when its checks pass. */
+  pdp?: { title: string; priceMxn: number };
 }

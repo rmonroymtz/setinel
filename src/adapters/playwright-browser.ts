@@ -19,6 +19,7 @@ export const CONTEXT_OPTIONS = {
 } as const;
 
 const NAVIGATION_TIMEOUT_MS = 30_000;
+const CLICK_TIMEOUT_MS = 10_000;
 
 export class PlaywrightBrowser implements Browser {
   async open({ siteHost, headed }: { siteHost: string; headed: boolean }): Promise<BrowserSession> {
@@ -105,6 +106,10 @@ class PlaywrightPageAdapter implements Page {
         };
       }),
     );
+  }
+
+  async click(selector: string): Promise<void> {
+    await this.#page.locator(selector).filter({ visible: true }).first().click({ timeout: CLICK_TIMEOUT_MS });
   }
 
   async waitFor(selector: string, condition: Condition, timeoutMs: number): Promise<boolean> {

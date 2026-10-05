@@ -49,10 +49,11 @@ export const pdpStep: JourneyStep<JourneyContext> = {
 };
 
 async function check(
-  { page }: JourneyContext,
+  context: JourneyContext,
   url: string,
   base: { addToCartEnabled: boolean; attempts: number; skippedUnavailable: string[] },
 ): Promise<StepOutcome> {
+  const { page } = context;
   const problems: string[] = [];
 
   await page.waitFor(selectors.pdpTitle, "visible", TITLE_TIMEOUT_MS);
@@ -70,8 +71,9 @@ async function check(
   if (!base.addToCartEnabled) problems.push("add to cart button is missing or disabled");
 
   const metadata = { url, title, priceMxn, imageWidth, ...base };
-  if (problems.length > 0) {
+  if (problems.length > 0 || priceMxn === null) {
     return { status: "fail", error: { message: `Product page checks failed: ${problems.join("; ")}` }, metadata };
   }
+  context.pdp = { title, priceMxn };
   return { status: "ok", metadata };
 }

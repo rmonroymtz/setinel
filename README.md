@@ -4,8 +4,9 @@ Synthetic monitor that walks chupaprecios.com.mx like a guest shopper, stops
 before payment, writes a machine-readable `reporte.json` and (later) notifies
 Slack. Failure detection is deterministic; there is no AI in this tool.
 
-Status: the journey currently covers home, search, a seeded random product pick and
-the product page. Cart, checkout, Slack and scheduling are still to come.
+Status: the journey currently covers home, search, a seeded random product pick,
+the product page and adding it to a guest cart. Checkout, Slack and scheduling
+are still to come.
 
 ## Requirements
 
@@ -47,9 +48,15 @@ failure.
 3. `pick-product`: the seeded PRNG picks one card. The listing does not show stock,
    so every card is a candidate.
 4. `pdp`: title, MXN price, main image decoded, and an enabled "Agregar al
-   carrito" button (never clicked). If the button stays disabled and the page
+   carrito" button (not clicked here). If the button stays disabled and the page
    says sold out, the next candidate is tried (at most 3 attempts); disabled
    with no explanation is a site failure.
+5. `add-to-cart`: clicks "Agregar al carrito", waits for the header cart counter,
+   opens `/cart` and checks that the product from the product page is a line
+   item and that the cart subtotal equals the product page price to the cent.
+   A missing counter, line item or subtotal, or a different subtotal, is a site
+   failure; a blocked cart page is a run error. The journey never goes past the
+   cart.
 
 Console errors are recorded in step metadata only. Failed same-site
 document/xhr/fetch requests (HTTP >= 400 or network failure) degrade the step;

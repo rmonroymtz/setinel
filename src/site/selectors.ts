@@ -6,7 +6,7 @@
  * Class names are CSS Modules with a build hash suffix (`productList-item-usF`).
  * Anchor on the stable prefix (`[class*="productList-item-"]`), roles or text,
  * never on the hashed class. Values are Playwright selector strings.
- * Confirmed against https://chupaprecios.com.mx on 2026-09-30.
+ * Confirmed against https://chupaprecios.com.mx on 2026-09-30 (cart selectors on 2026-10-05).
  */
 export const selectors = {
   searchInput: 'input[name="search_query"]',
@@ -24,6 +24,17 @@ export const selectors = {
   /** The carousel renders a 4px placeholder next to the real image; skip it. */
   pdpMainImage: 'img[class*="carousel-currentImage-"]:not([class*="placeholder"])',
   addToCart: '[class*="productFullDetail-root-"] >> role=button[name="Agregar al carrito"i]',
+  /**
+   * Item count badge on the header cart button. It is not rendered while the
+   * cart is empty, so seeing it means the add-to-cart request went through.
+   */
+  cartCounter: '[class*="cartTrigger-counter-"]',
+  /** One row per line item on the cart page (`/cart`). */
+  cartItem: '[class*="cartPage-root-"] li[class*="product-root-"]',
+  /** The product name link of a cart line; its URL slug differs from the PDP's, so match by name. */
+  cartItemName: '[class*="cartPage-root-"] li[class*="product-root-"] a[class*="product-nameLink-"]',
+  /** The "Subtotal" row of the cart page price summary (shipping and total are separate rows). */
+  cartSubtotal: '[class*="priceSummary-lineItems-"]:has-text("Subtotal")',
 } as const;
 
 // Hashed form: `.name-part-xyz` or a class attribute value ending in a hyphen plus a 3-character hash.

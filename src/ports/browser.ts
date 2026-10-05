@@ -27,6 +27,8 @@ export interface Page {
   /** Types the term into the field and presses Enter, waiting for the navigation to settle. */
   submit(selector: string, text: string): Promise<void>;
   queryAll(selector: string): Promise<ElementInfo[]>;
+  /** Clicks the first visible match. Throws when nothing clickable shows up in time. */
+  click(selector: string): Promise<void>;
   /** True when some match reaches the condition within the timeout. Never throws on timeout. */
   waitFor(selector: string, condition: Condition, timeoutMs: number): Promise<boolean>;
   screenshot(): Promise<Uint8Array>;

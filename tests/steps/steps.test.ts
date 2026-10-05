@@ -3,6 +3,8 @@ import { homeStep } from "../../src/steps/home.ts";
 import { searchStep } from "../../src/steps/search.ts";
 import { pickProductStep } from "../../src/steps/pick-product.ts";
 import { pdpStep } from "../../src/steps/pdp.ts";
+import { addToCartStep } from "../../src/steps/add-to-cart.ts";
+import { buildSteps } from "../../src/steps/index.ts";
 import { selectors } from "../../src/site/selectors.ts";
 import { runJourney } from "../../src/journey/run-journey.ts";
 import type { JourneyContext } from "../../src/steps/context.ts";
@@ -22,14 +24,18 @@ type Site = {
   navigation?: Record<string, NavigationResult | Error>;
   /** Elements per URL, then per selector. */
   elements?: Record<string, Record<string, ElementInfo[]>>;
+  /** Elements per URL, then per selector, that appear once the selector is clicked. */
+  afterClick?: Record<string, Record<string, Record<string, ElementInfo[]>>>;
 };
 
-function fakePage(site: Site): Page & { visited: string[] } {
+function fakePage(site: Site): Page & { visited: string[]; clicked: string[] } {
   let current = "";
   const visited: string[] = [];
+  const clicked: string[] = [];
   const query = async (selector: string) => site.elements?.[current]?.[selector] ?? [];
   return {
     visited,
+    clicked,
     async goto(url) {
       visited.push(url);
       const nav = site.navigation?.[url] ?? { status: 200, url, title: "Chupaprecios", bodyTextLength: 5_000 };
@@ -41,6 +47,13 @@ function fakePage(site: Site): Page & { visited: string[] } {
       current = `search:${text}`;
     },
     queryAll: query,
+    async click(selector) {
+      if (!(await query(selector)).some((m) => m.visible && !m.disabled)) throw new Error(`locator.click: Timeout waiting for ${selector}`);
+      clicked.push(selector);
+      for (const [url, patch] of Object.entries(site.afterClick?.[selector] ?? {})) {
+        site.elements = { ...site.elements, [url]: { ...site.elements?.[url], ...patch } };
+      }
+    },
     async waitFor(selector, condition: Condition) {
       const matches = await query(selector);
       if (condition === "gone") return !matches.some((m) => m.visible);
@@ -171,6 +184,8 @@ describe("pdp step", () => {
       status: "ok",
       metadata: { title: "Licuadora Ninja", priceMxn: 2341.76, imageWidth: 853, addToCartEnabled: true, attempts: 1 },
     });
+    expect(page.clicked).toEqual([]);
+    expect(context.pdp).toEqual({ title: "Licuadora Ninja", priceMxn: 2341.76 });
   });
 
   it("reports every broken check in one failure", async () => {
@@ -222,5 +237,105 @@ describe("pdp step", () => {
     const context = ctx(page, { candidates: [product(1)], product: product(1) });
     const r = await runJourney({ steps: [pdpStep], context, now: clock() });
     expect(r.failure).toEqual({ step: "pdp", kind: "unobservable" });
+  });
+});
+
+describe("add-to-cart step", () => {
+  const pdpUrl = "https://s.test/p1.html";
+  const cartUrl = "https://s.test/cart";
+  const picked = { name: "P1", url: pdpUrl, available: true };
+  const title = "Licuadora Ninja Professional";
+  const cartPage = (over: Record<string, ElementInfo[]> = {}): Record<string, ElementInfo[]> => ({
+    [selectors.cartItem]: [el({ text: `${title} Cantidad - + Eliminar $ 2 , 341 . 76` })],
+    [selectors.cartItemName]: [el({ text: title })],
+    [selectors.cartSubtotal]: [el({ text: "Subtotal $2,341.76" })],
+    ...over,
+  });
+  const site = (cart: Record<string, ElementInfo[]>, added = true): Site => ({
+    elements: { [pdpUrl]: { [selectors.addToCart]: [el({ text: "Agregar al carrito" })] }, [cartUrl]: cart },
+    afterClick: added ? { [selectors.addToCart]: { [pdpUrl]: { [selectors.cartCounter]: [el({ text: "1" })] } } } : {},
+  });
+  const run = async (s: Site) => {
+    const page = fakePage(s);
+    await page.goto(pdpUrl); // the pdp step leaves the browser on the product page
+    const context = ctx(page, { product: picked, pdp: { title, priceMxn: 2341.76 } });
+    const r = await runJourney({ steps: [addToCartStep], context, now: clock() });
+    return { r, page };
+  };
+
+  it("clicks add to cart, opens the cart and matches the line item and subtotal with the PDP", async () => {
+    const { r, page } = await run(site(cartPage()));
+
+    expect(page.clicked).toEqual([selectors.addToCart]);
+    expect(page.visited.at(-1)).toBe(cartUrl);
+    expect(r.steps[0]).toMatchObject({
+      status: "ok",
+      metadata: { cartUrl, title, pdpPriceMxn: 2341.76, subtotalMxn: 2341.76, lineItems: [title] },
+    });
+  });
+
+  it("matches the product name ignoring case and spacing", async () => {
+    const { r } = await run(site(cartPage({ [selectors.cartItemName]: [el({ text: "  licuadora  NINJA professional " })] })));
+    expect(r.steps[0]?.status).toBe("ok");
+  });
+
+  it("fails when the subtotal differs from the PDP price", async () => {
+    const { r } = await run(site(cartPage({ [selectors.cartSubtotal]: [el({ text: "Subtotal $2,399.00" })] })));
+    expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site", metadata: { subtotalMxn: 2399 } });
+    expect(r.steps[0]?.error?.message).toMatch(/subtotal/i);
+  });
+
+  it("fails when the cart shows no subtotal", async () => {
+    const { r } = await run(site(cartPage({ [selectors.cartSubtotal]: [] })));
+    expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site" });
+    expect(r.steps[0]?.error?.message).toMatch(/subtotal/i);
+  });
+
+  it("fails when the picked product is not among the cart lines", async () => {
+    const { r } = await run(site(cartPage({ [selectors.cartItemName]: [el({ text: "Otro producto" })] })));
+    expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site" });
+    expect(r.steps[0]?.error?.message).toMatch(/not in the cart/);
+  });
+
+  it("fails when the cart page has no line items", async () => {
+    const { r } = await run(site(cartPage({ [selectors.cartItem]: [], [selectors.cartItemName]: [] })));
+    expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site" });
+    expect(r.steps[0]?.error?.message).toMatch(/no line items/);
+  });
+
+  it("fails without visiting the cart when the click never reaches the cart", async () => {
+    const { r, page } = await run(site(cartPage(), false));
+    expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site" });
+    expect(r.steps[0]?.error?.message).toMatch(/cart counter/);
+    expect(page.visited).not.toContain(cartUrl);
+  });
+
+  it("is a site failure when the add-to-cart button cannot be clicked", async () => {
+    const s = site(cartPage());
+    s.elements![pdpUrl] = { [selectors.addToCart]: [el({ disabled: true })] };
+    const { r } = await run(s);
+    expect(r.failure).toEqual({ step: "add-to-cart", kind: "site" });
+  });
+
+  it("flags a blocked cart page as unobservable", async () => {
+    const s = site(cartPage());
+    s.navigation = { [cartUrl]: { status: 403, url: cartUrl, title: "403 Forbidden", bodyTextLength: 50 } };
+    const { r } = await run(s);
+    expect(r.failure).toEqual({ step: "add-to-cart", kind: "unobservable" });
+  });
+
+  it("refuses to run without the PDP price", async () => {
+    const page = fakePage(site(cartPage()));
+    const r = await runJourney({ steps: [addToCartStep], context: ctx(page, { product: picked }), now: clock() });
+    expect(r.steps[0]?.status).toBe("fail");
+    expect(page.clicked).toEqual([]);
+  });
+});
+
+describe("buildSteps", () => {
+  it("adds to cart right after the product page", () => {
+    const store = { writeJson: async () => "", writeBinary: async () => "" };
+    const names = buildSteps({ page: fakePage({}), store: store as never }).map((s) => s.name);
+    expect(names).toEqual(["home", "search", "pick-product", "pdp", "add-to-cart"]);
   });
 });
