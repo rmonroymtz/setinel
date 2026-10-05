@@ -109,6 +109,21 @@ customers do, with enough evidence to act on it.
       switch, second Bitbucket schedule, existing monitoring). Documented in
       README "Missing daily message". Route: inline (passive docs).
 
+### Pre-delivery follow-ups
+
+- [x] F1 Notify browser launch failure: a run that started always writes a
+      `run_error` report when possible and always notifies Slack, even when
+      the browser cannot start or the report cannot be written (exit 2).
+      Route: delegated writer. Commit `0300777`.
+- [x] F2 A `safeClick` refusal is a run error (monitor bug), not a site
+      failure, consistent with `OrderPlacementBlockedError`. Route: delegated
+      writer. Commit `ed03c3b`.
+- [x] F3 Review follow-ups from T1–T4: `..`-prefixed names such as `..foo`
+      are accepted by the disk store; `writeJson(undefined)` is rejected.
+      Route: delegated writer. Commit `a10453a`.
+- [x] F4 Ignore the CI pnpm store (`.pnpm-store/`). Route: delegated writer.
+      Commit `9b7c4c3`.
+
 ### Later
 
 - [ ] T12 Logged-in test account journey.
@@ -165,10 +180,13 @@ customers do, with enough evidence to act on it.
 
 - T10 verification: assessed tier high; RDD disabled (global off), so an independent read-only verifier ran: holds for exit-code propagation, secret never printed, versions pinned (playwright 1.63.0 = image tag, pnpm 12.4.1, frozen lockfile), `ciEvidenceLink` sanitization, README schedule text. Its one severe claim (named artifacts with `capture-on` must sit under `artifacts: upload:`) was refuted by the parent against the current Atlassian page "Use artifacts in steps": its example puts `name`/`paths`/`capture-on` directly as list items under `artifacts:`, the page has no `upload:` key, and `capture-on` defaults to `success`. No change made. Still unverified until a remote exists: a real pipeline run, cache, failed-step artifact upload, schedule UI, secured-variable masking, corepack inside the image.
 
+- F2 done (route: delegated writer; trigger: multi-file follow-up batch). `OrderPlacementRefusedError` moved to `src/journey/errors.ts` and now extends `UnobservableError` (re-exported from `safe-click.ts`), so a refused order-placing click ends the run as `run_error`, exit 2. TDD: RED 1 failing test (`safe-click.test.ts`, refusal not an `UnobservableError`); GREEN 207. `pnpm typecheck` clean. Commit `ed03c3b`.
+- F3 done (route: delegated writer; trigger: multi-file follow-up batch). `DiskArtifactStore` rejects only `..` or a leading `../` segment, so `..notes.json` is accepted; `writeJson` rejects data `JSON.stringify` cannot represent (`undefined`, functions, symbols) with a `TypeError` instead of writing the text `undefined` (decision: reject, documented on the port). TDD: RED 2 failing tests (plus 1 guard test passing on both sides); GREEN 210. `pnpm typecheck` clean. Commit `a10453a`.
+- F1 done (route: delegated writer; trigger: multi-file change). `buildRunErrorReport` (`src/report/build-report.ts`) appends each failed stage as an `unobservable` failing pseudo-step after any walked steps, so the report shape and the Slack renderer are unchanged and the status is derived as usual. `main` takes injectable `openBrowser`/`notify`, never throws after the run starts: browser launch failure gives stage `start-browser`, any other pre-report exception stage `run` (the session is closed), a report write failure appends `save-report`, notifies anyway and exits 2; a throwing notifier is logged and keeps the exit code. README documents it and the "Missing daily message" causes. TDD: RED 6 failing tests (2 report builder; 4 `tests/cli/main.test.ts`, which timed out at 5s because the old `main` launched a real browser against production during RED); GREEN 217 (21 files). `pnpm typecheck` clean. Live-free proof: `PLAYWRIGHT_BROWSERS_PATH=<empty dir>` with `SLACK_WEBHOOK_URL` pointing at a localhost `node:http` server: exit 2, `reporte.json` status `run_error`, failure `start-browser`/unobservable, the server received the Block Kit payload ("Sentinel RUN ERROR ..."). Live `pnpm sentinel` without `SLACK_WEBHOOK_URL`: exit 0, all six steps ok, skip line printed (run `20261005T194006Z`). No real Slack webhook was used. Commit `0300777`.
+- F4 done (route: delegated writer; passive). `.pnpm-store/` ignored. Commit `9b7c4c3`.
+
 ## Next step
 
-Slice 2 complete. Open follow-ups before delivery: browser launch failure is
-not notified to Slack (with the T11 decision, that failure is silent),
-safeClick refusal should be a run error, `..` prefix false reject,
-`writeJson(undefined)`, `.pnpm-store` in .gitignore. Then push and the first
-pull request (chain strategy to be asked). T12 stays for later.
+Slice 2 and the pre-delivery follow-ups are complete. Next: push and open the
+first pull request (the chain strategy will be asked first). T12 stays for
+later.
