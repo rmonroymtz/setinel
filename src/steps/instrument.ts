@@ -1,8 +1,9 @@
+import { OrderPlacementBlockedError } from "../journey/errors.ts";
 import type { JourneyStep, StepOutcome } from "../journey/run-journey.ts";
 import type { Page } from "../ports/browser.ts";
 import type { ArtifactStore } from "../ports/artifact-store.ts";
 
-type InstrumentedPage = Pick<Page, "takeDiagnostics" | "screenshot">;
+type InstrumentedPage = Pick<Page, "takeDiagnostics" | "takeBlockedOrderRequests" | "screenshot">;
 
 /**
  * Wraps a step so that every step result carries the console errors and failed
@@ -12,6 +13,10 @@ type InstrumentedPage = Pick<Page, "takeDiagnostics" | "screenshot">;
  * Console errors are metadata only: a busy storefront always logs some, and
  * failing on them would make the monitor cry wolf. Failed same-site requests
  * degrade an otherwise ok step.
+ *
+ * If the network guard aborted an order-placing request while the step ran, the
+ * step throws OrderPlacementBlockedError (a run error) whatever its own outcome:
+ * the monitor tried to buy, and that must never pass as ok, degraded or a site failure.
  */
 export function instrumentStep<Ctx>(
   step: JourneyStep<Ctx>,
@@ -21,13 +26,20 @@ export function instrumentStep<Ctx>(
   return {
     name: step.name,
     async run(context) {
-      page.takeDiagnostics(); // drop anything left from the previous step
+      // Drop anything left from the previous step.
+      page.takeDiagnostics();
+      page.takeBlockedOrderRequests();
       let outcome: StepOutcome;
       try {
         outcome = (await step.run(context)) ?? { status: "ok" };
       } catch (thrown) {
         await screenshot(page, store, step.name);
-        throw thrown;
+        throw blockedOrderError(page) ?? thrown;
+      }
+      const blocked = blockedOrderError(page);
+      if (blocked) {
+        await screenshot(page, store, step.name);
+        throw blocked;
       }
 
       const diagnostics = page.takeDiagnostics();
@@ -54,6 +66,11 @@ export function instrumentStep<Ctx>(
       };
     },
   };
+}
+
+function blockedOrderError(page: InstrumentedPage): OrderPlacementBlockedError | undefined {
+  const blocked = page.takeBlockedOrderRequests();
+  return blocked.length > 0 ? new OrderPlacementBlockedError(blocked) : undefined;
 }
 
 // Evidence is best effort: a closed page must not hide the real failure.

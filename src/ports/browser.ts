@@ -38,6 +38,8 @@ export interface Page {
   screenshot(): Promise<Uint8Array>;
   /** Console errors and failed requests recorded since the last call. */
   takeDiagnostics(): Diagnostics;
+  /** Order-placing requests the network guard aborted since the last call, as "METHOD url (reason)". */
+  takeBlockedOrderRequests(): string[];
 }
 
 export interface BrowserSession {

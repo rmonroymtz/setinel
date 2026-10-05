@@ -2,9 +2,9 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
-import type { Page as PlaywrightPage } from "playwright";
+import type { BrowserContext, Page as PlaywrightPage } from "playwright";
 import { createDiagnosticsCollector } from "../diagnostics/collector.ts";
-import { isOrderPlacingRequest } from "../site/order-guard.ts";
+import { mayPlaceOrder, orderPlacingReason } from "../site/order-guard.ts";
 import type { Browser, BrowserSession, Condition, ElementInfo, NavigationResult, Page } from "../ports/browser.ts";
 
 /**
@@ -31,11 +31,8 @@ export class PlaywrightBrowser implements Browser {
     const context = await browser.newContext(CONTEXT_OPTIONS);
     context.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS);
     await context.tracing.start({ screenshots: true, snapshots: true });
-    // Last line of defence behind safeClick: whatever the page does, a request that
-    // would place an order or set a payment method never leaves the browser.
-    await context.route(/graphql/, (route) =>
-      isOrderPlacingRequest(route.request().postData()) ? route.abort("blockedbyclient") : route.continue(),
-    );
+    const blockedOrderRequests: string[] = [];
+    await installOrderGuard(context, (request) => blockedOrderRequests.push(request));
 
     const collector = createDiagnosticsCollector(siteHost);
     const page = await context.newPage();
@@ -49,7 +46,7 @@ export class PlaywrightBrowser implements Browser {
     );
 
     return {
-      page: new PlaywrightPageAdapter(page, collector.take.bind(collector)),
+      page: new PlaywrightPageAdapter(page, collector.take.bind(collector), () => blockedOrderRequests.splice(0)),
       async close() {
         // Tracing only writes to a path, so go through a throwaway directory.
         const dir = await mkdtemp(join(tmpdir(), "sentinel-trace-"));
@@ -66,13 +63,40 @@ export class PlaywrightBrowser implements Browser {
   }
 }
 
+/**
+ * Last line of defence behind safeClick: whatever the page does, a request that
+ * would place an order or set a payment method (GraphQL or REST, see
+ * `src/site/order-guard.ts`) is aborted before it leaves the browser and reported
+ * through `onBlocked`. Requests it lets through fall back to any other route.
+ */
+export async function installOrderGuard(
+  context: Pick<BrowserContext, "route">,
+  onBlocked: (request: string) => void,
+): Promise<void> {
+  await context.route(mayPlaceOrder, (route) => {
+    const request = route.request();
+    const url = request.url();
+    const reason = orderPlacingReason({ method: request.method(), url, body: request.postData() });
+    if (!reason) return route.fallback();
+    const { origin, pathname } = new URL(url);
+    onBlocked(`${request.method()} ${origin}${pathname} (${reason})`);
+    return route.abort("blockedbyclient");
+  });
+}
+
 class PlaywrightPageAdapter implements Page {
   readonly #page: PlaywrightPage;
   readonly takeDiagnostics: Page["takeDiagnostics"];
+  readonly takeBlockedOrderRequests: Page["takeBlockedOrderRequests"];
 
-  constructor(page: PlaywrightPage, takeDiagnostics: Page["takeDiagnostics"]) {
+  constructor(
+    page: PlaywrightPage,
+    takeDiagnostics: Page["takeDiagnostics"],
+    takeBlockedOrderRequests: Page["takeBlockedOrderRequests"],
+  ) {
     this.#page = page;
     this.takeDiagnostics = takeDiagnostics;
+    this.takeBlockedOrderRequests = takeBlockedOrderRequests;
   }
 
   async goto(url: string): Promise<NavigationResult> {

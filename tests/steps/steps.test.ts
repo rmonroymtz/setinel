@@ -89,6 +89,7 @@ function fakePage(
     },
     screenshot: async () => new Uint8Array(),
     takeDiagnostics: () => ({ consoleErrors: [], failedRequests: [], thirdPartyFailures: 0 }),
+    takeBlockedOrderRequests: () => [],
   };
 }
 
