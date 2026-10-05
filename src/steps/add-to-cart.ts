@@ -1,5 +1,6 @@
 import type { JourneyStep, StepOutcome } from "../journey/run-journey.ts";
-import { parseMxn } from "../site/price.ts";
+import { parseMxn, toCents } from "../site/price.ts";
+import { sameProductName } from "../site/product-name.ts";
 import { selectors } from "../site/selectors.ts";
 import type { JourneyContext } from "./context.ts";
 import { navigate } from "./navigate.ts";
@@ -57,14 +58,4 @@ export const addToCartStep: JourneyStep<JourneyContext> = {
 
 function fail(message: string, metadata?: Record<string, unknown>): StepOutcome {
   return { status: "fail", error: { message }, ...(metadata && { metadata }) };
-}
-
-const toCents = (mxn: number) => Math.round(mxn * 100);
-
-const normalizeName = (name: string) => name.normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
-
-/** Cart and PDP render the same product name; compare it without case and spacing differences. */
-function sameProductName(a: string, b: string): boolean {
-  const left = normalizeName(a);
-  return left !== "" && left === normalizeName(b);
 }

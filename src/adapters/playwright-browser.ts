@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { chromium } from "playwright";
 import type { Page as PlaywrightPage } from "playwright";
 import { createDiagnosticsCollector } from "../diagnostics/collector.ts";
+import { isOrderPlacingRequest } from "../site/order-guard.ts";
 import type { Browser, BrowserSession, Condition, ElementInfo, NavigationResult, Page } from "../ports/browser.ts";
 
 /**
@@ -20,6 +21,9 @@ export const CONTEXT_OPTIONS = {
 
 const NAVIGATION_TIMEOUT_MS = 30_000;
 const CLICK_TIMEOUT_MS = 10_000;
+const FILL_TIMEOUT_MS = 10_000;
+// Slow enough for the address search to react to each key, like a person typing.
+const TYPE_DELAY_MS = 30;
 
 export class PlaywrightBrowser implements Browser {
   async open({ siteHost, headed }: { siteHost: string; headed: boolean }): Promise<BrowserSession> {
@@ -27,6 +31,11 @@ export class PlaywrightBrowser implements Browser {
     const context = await browser.newContext(CONTEXT_OPTIONS);
     context.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS);
     await context.tracing.start({ screenshots: true, snapshots: true });
+    // Last line of defence behind safeClick: whatever the page does, a request that
+    // would place an order or set a payment method never leaves the browser.
+    await context.route(/graphql/, (route) =>
+      isOrderPlacingRequest(route.request().postData()) ? route.abort("blockedbyclient") : route.continue(),
+    );
 
     const collector = createDiagnosticsCollector(siteHost);
     const page = await context.newPage();
@@ -91,6 +100,16 @@ class PlaywrightPageAdapter implements Page {
     await this.#page.waitForLoadState("load").catch(() => {});
   }
 
+  async fill(selector: string, value: string): Promise<void> {
+    await this.#visible(selector).fill(value, { timeout: FILL_TIMEOUT_MS });
+  }
+
+  async type(selector: string, text: string): Promise<void> {
+    const field = this.#visible(selector);
+    await field.fill("", { timeout: FILL_TIMEOUT_MS });
+    await field.pressSequentially(text, { delay: TYPE_DELAY_MS });
+  }
+
   async queryAll(selector: string): Promise<ElementInfo[]> {
     return this.#page.locator(selector).evaluateAll((els) =>
       els.map((el) => {
@@ -109,7 +128,11 @@ class PlaywrightPageAdapter implements Page {
   }
 
   async click(selector: string): Promise<void> {
-    await this.#page.locator(selector).filter({ visible: true }).first().click({ timeout: CLICK_TIMEOUT_MS });
+    await this.#visible(selector).click({ timeout: CLICK_TIMEOUT_MS });
+  }
+
+  #visible(selector: string) {
+    return this.#page.locator(selector).filter({ visible: true }).first();
   }
 
   async waitFor(selector: string, condition: Condition, timeoutMs: number): Promise<boolean> {

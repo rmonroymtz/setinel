@@ -26,6 +26,10 @@ export interface Page {
   goto(url: string): Promise<NavigationResult>;
   /** Types the term into the field and presses Enter, waiting for the navigation to settle. */
   submit(selector: string, text: string): Promise<void>;
+  /** Replaces the value of the first visible match. */
+  fill(selector: string, value: string): Promise<void>;
+  /** Types into the first visible match key by key, for widgets (address search) that ignore a pasted value. */
+  type(selector: string, text: string): Promise<void>;
   queryAll(selector: string): Promise<ElementInfo[]>;
   /** Clicks the first visible match. Throws when nothing clickable shows up in time. */
   click(selector: string): Promise<void>;

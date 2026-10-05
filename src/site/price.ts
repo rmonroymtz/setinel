@@ -5,3 +5,6 @@ export function parseMxn(text: string): number | null {
   const amount = Number(`${match[1]!.replaceAll(",", "")}.${match[2] ?? "0"}`);
   return amount > 0 ? amount : null;
 }
+
+/** Whole cents, so amounts parsed from different pages compare without floating-point noise. */
+export const toCents = (mxn: number) => Math.round(mxn * 100);

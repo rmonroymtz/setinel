@@ -4,6 +4,9 @@ import { searchStep } from "../../src/steps/search.ts";
 import { pickProductStep } from "../../src/steps/pick-product.ts";
 import { pdpStep } from "../../src/steps/pdp.ts";
 import { addToCartStep } from "../../src/steps/add-to-cart.ts";
+import { checkoutStep } from "../../src/steps/checkout.ts";
+import { DEFAULT_GUEST_PROFILE } from "../../src/site/guest-profile.ts";
+import { orderPlacingDenylist } from "../../src/site/selectors.ts";
 import { buildSteps } from "../../src/steps/index.ts";
 import { selectors } from "../../src/site/selectors.ts";
 import { runJourney } from "../../src/journey/run-journey.ts";
@@ -26,16 +29,32 @@ type Site = {
   elements?: Record<string, Record<string, ElementInfo[]>>;
   /** Elements per URL, then per selector, that appear once the selector is clicked. */
   afterClick?: Record<string, Record<string, Record<string, ElementInfo[]>>>;
+  /** Elements per URL, then per selector, that appear once text is typed into the selector. */
+  afterType?: Record<string, Record<string, Record<string, ElementInfo[]>>>;
 };
 
-function fakePage(site: Site): Page & { visited: string[]; clicked: string[] } {
+function fakePage(
+  site: Site,
+): Page & { visited: string[]; clicked: string[]; filled: Record<string, string>; typed: Record<string, string> } {
   let current = "";
   const visited: string[] = [];
   const clicked: string[] = [];
+  const filled: Record<string, string> = {};
+  const typed: Record<string, string> = {};
   const query = async (selector: string) => site.elements?.[current]?.[selector] ?? [];
+  const reveal = (patches: Record<string, Record<string, ElementInfo[]>> = {}) => {
+    for (const [url, patch] of Object.entries(patches)) {
+      site.elements = { ...site.elements, [url]: { ...site.elements?.[url], ...patch } };
+    }
+  };
+  const editable = async (selector: string) => {
+    if (!(await query(selector)).some((m) => m.visible && !m.disabled)) throw new Error(`locator.fill: Timeout waiting for ${selector}`);
+  };
   return {
     visited,
     clicked,
+    filled,
+    typed,
     async goto(url) {
       visited.push(url);
       const nav = site.navigation?.[url] ?? { status: 200, url, title: "Chupaprecios", bodyTextLength: 5_000 };
@@ -50,9 +69,16 @@ function fakePage(site: Site): Page & { visited: string[]; clicked: string[] } {
     async click(selector) {
       if (!(await query(selector)).some((m) => m.visible && !m.disabled)) throw new Error(`locator.click: Timeout waiting for ${selector}`);
       clicked.push(selector);
-      for (const [url, patch] of Object.entries(site.afterClick?.[selector] ?? {})) {
-        site.elements = { ...site.elements, [url]: { ...site.elements?.[url], ...patch } };
-      }
+      reveal(site.afterClick?.[selector]);
+    },
+    async fill(selector, value) {
+      await editable(selector);
+      filled[selector] = value;
+    },
+    async type(selector, text) {
+      await editable(selector);
+      typed[selector] = text;
+      reveal(site.afterType?.[selector]);
     },
     async waitFor(selector, condition: Condition) {
       const matches = await query(selector);
@@ -332,10 +358,156 @@ describe("add-to-cart step", () => {
   });
 });
 
+describe("checkout step", () => {
+  const cartUrl = "https://s.test/cart";
+  const checkoutUrl = "https://s.test/checkout";
+  const title = "Licuadora Ninja Professional";
+  const guest = { ...DEFAULT_GUEST_PROFILE, email: "probe@s.test" };
+  const s = selectors;
+
+  /** A one-step checkout where each action reveals the next section, as the live site does. */
+  const site = (over: { checkout?: Record<string, ElementInfo[]>; payment?: Record<string, ElementInfo[]> } = {}): Site => ({
+    elements: {
+      [checkoutUrl]: {
+        [s.guestEmail]: [el()],
+        [s.guestFirstName]: [el()],
+        [s.guestLastName]: [el()],
+        [s.guestPhone]: [el()],
+        [s.addressAutocomplete]: [el()],
+        ...over.checkout,
+      },
+    },
+    afterType: {
+      [s.addressAutocomplete]: { [checkoutUrl]: { [s.addressSuggestion]: [el({ text: "Avenida Paseo de la Reforma 222 Juárez, Ciudad de México" })] } },
+    },
+    afterClick: {
+      [s.addressSuggestion]: { [checkoutUrl]: { [s.addressStreet]: [el()], [s.addressReferences]: [el()], [s.saveAddress]: [el({ text: "Guardar" })] } },
+      [s.saveAddress]: {
+        [checkoutUrl]: {
+          [s.shippingMethodOpen]: [el()],
+          [s.shippingMethodOption]: [el()],
+          [s.shippingMethodNext]: [el({ text: "Siguiente" })],
+          [s.shippingAddressSummary]: [el({ text: "Dirección de envío Av. P.º de la Reforma 222, Juárez Ciudad de México, Cuauhtémoc 06600" })],
+        },
+      },
+      [s.shippingMethodNext]: {
+        [checkoutUrl]: {
+          [s.paymentMethodOption]: [el(), el()],
+          [s.paymentMethodLabel]: [el({ text: "Tarjeta de crédito o débito" }), el({ text: "OXXO" })],
+          [s.checkoutItemName]: [el({ text: title })],
+          [s.checkoutSubtotal]: [el({ text: "Subtotal $2,341.76" })],
+          ...over.payment,
+        },
+      },
+    },
+  });
+  const run = async (st: Site, over: Partial<JourneyContext> = {}) => {
+    const page = fakePage(st);
+    await page.goto(cartUrl); // the add-to-cart step leaves the browser on the cart
+    const context = ctx(page, { product: { name: "P1", url: "https://s.test/p1.html", available: true }, pdp: { title, priceMxn: 2341.76 }, ...over });
+    const r = await runJourney({ steps: [checkoutStep(guest)], context, now: clock() });
+    return { r, page };
+  };
+
+  it("checks out as a guest up to the payment screen and stops there", async () => {
+    const { r, page } = await run(site());
+
+    expect(page.visited.at(-1)).toBe(checkoutUrl);
+    expect(page.filled).toMatchObject({
+      [s.guestEmail]: "probe@s.test",
+      [s.guestFirstName]: guest.firstName,
+      [s.guestLastName]: guest.lastName,
+      [s.guestPhone]: guest.phone,
+      [s.addressReferences]: guest.references,
+    });
+    expect(page.typed[s.addressAutocomplete]).toBe(guest.address);
+    expect(page.clicked).toEqual([s.addressSuggestion, s.saveAddress, s.shippingMethodNext]);
+    expect(r.steps[0]).toMatchObject({
+      status: "ok",
+      metadata: {
+        checkoutUrl,
+        title,
+        pdpPriceMxn: 2341.76,
+        subtotalMxn: 2341.76,
+        lineItems: [title],
+        paymentMethods: ["Tarjeta de crédito o débito", "OXXO"],
+      },
+    });
+  });
+
+  it("never clicks anything on the order-placing denylist", async () => {
+    const { page } = await run(site());
+    for (const clicked of page.clicked) {
+      for (const denied of orderPlacingDenylist.selectors) expect(clicked).not.toContain(denied);
+    }
+  });
+
+  it("is a site failure when checkout offers no guest form", async () => {
+    const { r } = await run(site({ checkout: { [s.guestEmail]: [] } }));
+    expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site" });
+    expect(r.steps[0]?.error?.message).toMatch(/guest/i);
+  });
+
+  it("fails when the address search shows no suggestions", async () => {
+    const st = site();
+    st.afterType = {};
+    const { r } = await run(st);
+    expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site" });
+    expect(r.steps[0]?.error?.message).toMatch(/address suggestion/i);
+  });
+
+  it("fails when the shipping method section never opens after saving the address", async () => {
+    const st = site();
+    delete st.afterClick![s.saveAddress];
+    const { r } = await run(st);
+    expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site" });
+    expect(r.steps[0]?.error?.message).toMatch(/shipping method/i);
+  });
+
+  it("fails when the saved address does not carry the guest postal code", async () => {
+    const st = site();
+    st.afterClick![s.saveAddress]![checkoutUrl]![s.shippingAddressSummary] = [el({ text: "Dirección de envío Aguascalientes 20000" })];
+    const { r } = await run(st);
+    expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site" });
+    expect(r.steps[0]?.error?.message).toMatch(/postal code/i);
+  });
+
+  it("fails when the payment screen never shows payment methods", async () => {
+    const { r } = await run(site({ payment: { [s.paymentMethodOption]: [] } }));
+    expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site" });
+    expect(r.steps[0]?.error?.message).toMatch(/payment/i);
+  });
+
+  it("fails when the order summary does not list the product", async () => {
+    const { r } = await run(site({ payment: { [s.checkoutItemName]: [el({ text: "Otro producto" })] } }));
+    expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site" });
+    expect(r.steps[0]?.error?.message).toMatch(/not in the order summary/);
+  });
+
+  it("fails when the checkout subtotal differs from the PDP price", async () => {
+    const { r } = await run(site({ payment: { [s.checkoutSubtotal]: [el({ text: "Subtotal $2,399.00" })] } }));
+    expect(r.steps[0]).toMatchObject({ status: "fail", failureKind: "site", metadata: { subtotalMxn: 2399 } });
+    expect(r.steps[0]?.error?.message).toMatch(/subtotal/i);
+  });
+
+  it("flags a blocked checkout page as unobservable", async () => {
+    const st = site();
+    st.navigation = { [checkoutUrl]: { status: 403, url: checkoutUrl, title: "403 Forbidden", bodyTextLength: 50 } };
+    const { r } = await run(st);
+    expect(r.failure).toEqual({ step: "checkout", kind: "unobservable" });
+  });
+
+  it("refuses to run without the PDP price", async () => {
+    const { r, page } = await run(site(), { pdp: undefined });
+    expect(r.steps[0]?.status).toBe("fail");
+    expect(page.visited).not.toContain(checkoutUrl);
+  });
+});
+
 describe("buildSteps", () => {
-  it("adds to cart right after the product page", () => {
+  it("checks out right after adding to cart", () => {
     const store = { writeJson: async () => "", writeBinary: async () => "" };
     const names = buildSteps({ page: fakePage({}), store: store as never }).map((s) => s.name);
-    expect(names).toEqual(["home", "search", "pick-product", "pdp", "add-to-cart"]);
+    expect(names).toEqual(["home", "search", "pick-product", "pdp", "add-to-cart", "checkout"]);
   });
 });
