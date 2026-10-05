@@ -45,6 +45,18 @@ describe("SlackWebhookNotifier", () => {
     expect((error as Error).message).not.toContain("secret-token");
   });
 
+  it("redacts a webhook URL echoed in the answer body before truncating it", async () => {
+    // The 200-character cut lands inside the echoed URL, right after "secret".
+    const echoed = `${"x".repeat(150)}${WEBHOOK}`;
+    const fetchFn = vi.fn<typeof fetch>(async () => new Response(echoed, { status: 502 }));
+    const notifier = new SlackWebhookNotifier({ webhookUrl: WEBHOOK, evidenceDir: "runs/run-1", fetch: fetchFn });
+
+    const error = (await notifier.notify(report).catch((e: unknown) => e)) as Error;
+    expect(error.message).toContain("HTTP 502");
+    expect(error.message).not.toContain("/services/T000");
+    expect(error.message).not.toContain("secret");
+  });
+
   it("rejects on a network error without exposing the webhook URL", async () => {
     const fetchFn = vi.fn<typeof fetch>(async () => {
       throw new TypeError(`Failed to parse URL from ${WEBHOOK}`);

@@ -46,8 +46,9 @@ export class SlackWebhookNotifier implements Notifier {
       throw new Error(`Slack webhook request failed: ${this.#redact(reason)}`);
     }
     if (!response.ok) {
-      const detail = await response.text().then((t) => t.trim().slice(0, 200), () => "");
-      throw new Error(`Slack webhook answered HTTP ${response.status}${detail ? `: ${this.#redact(detail)}` : ""}`);
+      // Redact before truncating: a cut through an echoed URL would leave part of the secret.
+      const detail = await response.text().then((t) => this.#redact(t.trim()).slice(0, 200), () => "");
+      throw new Error(`Slack webhook answered HTTP ${response.status}${detail ? `: ${detail}` : ""}`);
     }
   }
 
