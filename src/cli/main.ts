@@ -7,6 +7,7 @@ import { buildReport, REPORT_FILENAME } from "../report/build-report.ts";
 import { buildSteps } from "../steps/index.ts";
 import type { JourneyContext } from "../steps/context.ts";
 import { parseCliArgs, USAGE, UsageError } from "./args.ts";
+import { notifyRun } from "./notify.ts";
 import { exitCodeFor, formatSummary } from "./summary.ts";
 
 const STEP_TIMEOUT_MS = 90_000;
@@ -66,5 +67,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
   const report = buildReport({ runId, seed, targetUrl: options.baseUrl, journey, extraEvidence });
   const reportPath = join(outDir, await store.writeJson(REPORT_FILENAME, report));
   console.log(formatSummary(report, reportPath));
+  // Slack is told about every run; its failures are logged and never change the exit code.
+  await notifyRun(report, { env, evidenceDir: outDir });
   return exitCodeFor(report.status);
 }

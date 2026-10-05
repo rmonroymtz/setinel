@@ -1,12 +1,12 @@
 # Sentinel
 
 Synthetic monitor that walks chupaprecios.com.mx like a guest shopper, stops
-before payment, writes a machine-readable `reporte.json` and (later) notifies
+before payment, writes a machine-readable `reporte.json` and notifies
 Slack. Failure detection is deterministic; there is no AI in this tool.
 
 Status: the journey covers home, search, a seeded random product pick, the
-product page, a guest cart and guest checkout up to the payment screen. Slack
-and scheduling are still to come.
+product page, a guest cart and guest checkout up to the payment screen, and a
+Slack notification. Scheduling is still to come.
 
 ## Requirements
 
@@ -91,6 +91,30 @@ in `src/site/order-guard.ts`). If that network guard ever blocks a request, the
 monitor itself tried to buy: the run ends as a run error (exit code 2), never as
 a site failure. The cart's checkout button also reads "Finalizar compra", so the
 journey opens `/checkout` by URL instead of clicking it.
+
+### Slack notification
+
+Set `SLACK_WEBHOOK_URL` to a Slack [incoming webhook](https://api.slack.com/messaging/webhooks)
+URL and every run (ok, degraded, fail and run error) posts one message after
+`reporte.json` is written. Without it, the run prints
+`sentinel: SLACK_WEBHOOK_URL is not set; Slack notification skipped` and
+nothing is sent. The webhook URL is a secret: it is never printed or logged.
+
+The message shows:
+
+- the overall status with an emoji and a label (`OK`, `DEGRADED`, `FAIL`: the
+  site is broken, `RUN ERROR`: the site could not be observed);
+- target URL, run id, start time (UTC), duration, seed and the product the
+  product page opened (linked, with its price);
+- one line per step with its status and duration;
+- for a failing step its error message and failure kind (site failure or
+  unobservable), and for a degraded step its error message; long messages are
+  truncated to stay within Slack's block limits;
+- where the evidence lives: `<out>/reporte.json`, `<out>/screenshots/` and
+  `<out>/trace.zip`. Webhooks cannot attach files, so nothing is uploaded.
+
+A Slack problem (HTTP error, network error, no answer within 10 seconds) is
+printed to stderr and never changes the report or the exit code.
 
 Console errors are recorded in step metadata only. Failed same-site
 document/xhr/fetch requests (HTTP >= 400 or network failure) degrade the step;
