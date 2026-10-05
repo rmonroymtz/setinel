@@ -6,3 +6,4 @@ playwright-report/
 
 # Local agent tooling cache
 .atl/
+.pnpm-store/
