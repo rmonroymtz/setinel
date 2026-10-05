@@ -93,8 +93,9 @@ customers do, with enough evidence to act on it.
 
 - [x] T7 Add to cart and check subtotal matches PDP price. Route: delegated
       (writer + live site exploration). Commit `50a93a1`.
-- [ ] T8 Guest checkout with fixed synthetic identifiable data up to the
-      payment screen; stop there.
+- [x] T8 Guest checkout with fixed synthetic identifiable data up to the
+      payment screen; stop there. Route: delegated (writer + live site
+      exploration). Commit `75c1061`.
 - [ ] T9 Slack notifier adapter (webhook) with per-step summary.
 - [ ] T10 `bitbucket-pipelines.yml` custom pipeline + schedule instructions.
 - [ ] T11 Heartbeat: alert when the daily run did not happen.
@@ -142,6 +143,8 @@ customers do, with enough evidence to act on it.
 
 - T7 done (route: delegated writer; trigger: multi-file change + live site exploration). Live probe: clicking "Agregar al carrito" does not open the mini cart; it renders the header counter `[class*="cartTrigger-counter-"]` (absent while empty). `/cart` shows line items and a price summary (Subtotal, shipping $199, Total) for a guest with no postal code or login. Cart name link slug differs from the PDP URL (`acci-n` vs `accin`), so the line is matched by normalized name. Subtotal equals the PDP price to the cent on the live site, so no rounding tolerance (cents comparison only). Port gains `Page.click`; pdp step stores `context.pdp = { title, priceMxn }`. TDD: RED 10 failing tests (with a throwing stub step; 2 new tests passed trivially against the stub), GREEN 137. `pnpm typecheck` clean. Live: `pnpm sentinel` exit 0, all five steps ok, `screenshots/add-to-cart.png` shows `/cart` with the item and matching subtotal (two runs, seeds 449932131 and 1726929204). Commit `50a93a1`. Review: assessed tier medium; RDD disabled (global off), so no native review; writer self-verification plus parent spot check (`pnpm test` 137 passed).
 
+- T8 done (route: delegated writer; trigger: multi-file change + live site exploration). Live probe: `/checkout` is an Amasty one-step checkout ("Compra sin registro", no forced login) with `[data-block]` sections (`shipping_address`, `shipping_method`, `payment_method`, `summary`) that open via `data-expanded="true"`; hidden duplicate fields exist, so selectors are block-scoped and act on the visible match. Address detail fields only appear after picking a Google Places suggestion (`.pac-item`), which needs key-by-key typing; overwriting the autofilled fields by hand left the state as "Aguascalientes", so the profile holds a search query plus the expected postal code (verified in the saved address summary) instead of per-field address data. Shipping method (Estafeta) is preselected; "Siguiente" opens payment methods (PayPal, Kueski, card, deposit, Mercado Pago, OXXO). Safety: the cart button and the place-order button both read "Finalizar compra", so the step opens `/checkout` by URL; `orderPlacingDenylist` in `selectors.ts` + `safeClick` refuse denylisted selectors/keywords and elements whose text reads like ordering/paying (unit tested); the Playwright adapter also aborts GraphQL mutations `placeOrder`/`setPaymentMethodOnCart`/PayPal token. No payment method is ever selected. Synthetic data in `src/site/guest-profile.ts` (Sentinel / QA Monitor, `sentinel-qa@chupaprecios.com.mx`, 5555555555, Paseo de la Reforma 222, 06600 CDMX), each field overridable via `SENTINEL_GUEST_*` (README). Port gains `Page.fill` and `Page.type`; `toCents` and `sameProductName` extracted to `src/site`. TDD: RED 5 test files failing (4 on missing modules incl. `steps.test.ts`, plus 2 failing denylist tests); GREEN 164. `pnpm typecheck` clean. Live: `pnpm sentinel` exit 0 twice (seeds 828951045, 1978131940), all six steps ok, checkout ~20s, `screenshots/checkout.png` shows the payment screen with no method selected and the order not placed; no blocked or failed same-site requests. Commit `75c1061`.
+
 ## Next step
 
-T8: guest checkout with fixed synthetic identifiable data up to the payment screen; stop there.
+T9: Slack notifier adapter (webhook) with per-step summary.
