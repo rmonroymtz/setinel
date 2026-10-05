@@ -91,7 +91,8 @@ customers do, with enough evidence to act on it.
 
 ### Slice 2 — cart, checkout, notification, schedule
 
-- [ ] T7 Add to cart and check subtotal matches PDP price.
+- [x] T7 Add to cart and check subtotal matches PDP price. Route: delegated
+      (writer + live site exploration). Commit `50a93a1`.
 - [ ] T8 Guest checkout with fixed synthetic identifiable data up to the
       payment screen; stop there.
 - [ ] T9 Slack notifier adapter (webhook) with per-step summary.
@@ -137,6 +138,10 @@ customers do, with enough evidence to act on it.
 
 - T6 done (route: delegated). RED: 4 new test files failing on missing modules; GREEN: 120 tests. Steps home, search, pick-product, pdp with sanity classification (blocked/unseen = unobservable), CLI `pnpm sentinel` (exit 0 ok/degraded, 1 site fail, 2 run_error). Live runs against production: OK with seeds 1, 987654, 31337; unreachable host gives run_error exit 2. Availability is not shown on the listing; PDP decides (button enabled after hydration, up to 20s). Commit `c5e619b`.
 
+- T6b commit `273230b`; T6c commit `7e179e6`.
+
+- T7 done (route: delegated writer; trigger: multi-file change + live site exploration). Live probe: clicking "Agregar al carrito" does not open the mini cart; it renders the header counter `[class*="cartTrigger-counter-"]` (absent while empty). `/cart` shows line items and a price summary (Subtotal, shipping $199, Total) for a guest with no postal code or login. Cart name link slug differs from the PDP URL (`acci-n` vs `accin`), so the line is matched by normalized name. Subtotal equals the PDP price to the cent on the live site, so no rounding tolerance (cents comparison only). Port gains `Page.click`; pdp step stores `context.pdp = { title, priceMxn }`. TDD: RED 10 failing tests (with a throwing stub step; 2 new tests passed trivially against the stub), GREEN 137. `pnpm typecheck` clean. Live: `pnpm sentinel` exit 0, all five steps ok, `screenshots/add-to-cart.png` shows `/cart` with the item and matching subtotal (two runs, seeds 449932131 and 1726929204). Commit `50a93a1`.
+
 ## Next step
 
-T7: add to cart and compare the subtotal with the PDP price.
+T8: guest checkout with fixed synthetic identifiable data up to the payment screen; stop there.
