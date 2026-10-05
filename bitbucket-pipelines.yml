@@ -1,0 +1,71 @@
+# Bitbucket Pipelines for Sentinel.
+#
+# The image is Playwright's official one, pinned to the exact Playwright version
+# in pnpm-lock.yaml (1.63.0): it ships Node 24 and the matching Chromium with its
+# system dependencies under /ms-playwright. Bump the tag together with the
+# `playwright` dependency.
+#
+# Schedules are not configured here: create one in the Bitbucket UI
+# (Pipelines > Schedules) for `custom: sentinel-daily` (see README).
+# Both steps install the same way: keep their install commands in sync.
+image: mcr.microsoft.com/playwright:v1.63.0-noble
+
+clone:
+  depth: 1
+
+definitions:
+  caches:
+    pnpm:
+      key:
+        files:
+          - pnpm-lock.yaml
+      path: .pnpm-store
+
+pipelines:
+  # Every push to any branch: typecheck and the offline test suite. The
+  # order-guard wiring test drives the real Chromium from the image.
+  default:
+    - step:
+        name: Typecheck and test
+        caches:
+          - pnpm
+        max-time: 20
+        script:
+          - export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+          - corepack enable pnpm
+          # The pnpm that wrote pnpm-lock.yaml (lockfile v9).
+          - corepack install --global pnpm@12.4.1
+          - pnpm install --frozen-lockfile --store-dir .pnpm-store
+          # A no-op when the image already holds this Playwright's Chromium;
+          # downloads it otherwise (e.g. right after a version bump).
+          - pnpm exec playwright install chromium
+          - pnpm typecheck
+          - pnpm test
+
+  custom:
+    # The daily run against production. Triggered by a schedule (12:00 UTC =
+    # 06:00 America/Mexico_City) or by hand. The step fails (red) on exit 1
+    # (site failure) and 2 (run error); 0 covers ok and degraded.
+    # SLACK_WEBHOOK_URL comes from a secured repository variable.
+    sentinel-daily:
+      - step:
+          name: Sentinel guest purchase journey
+          caches:
+            - pnpm
+          max-time: 20
+          script:
+            - export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+            - corepack enable pnpm
+            # The pnpm that wrote pnpm-lock.yaml (lockfile v9).
+            - corepack install --global pnpm@12.4.1
+            - pnpm install --frozen-lockfile --store-dir .pnpm-store
+            # A no-op when the image already holds this Playwright's Chromium;
+            # downloads it otherwise (e.g. right after a version bump).
+            - pnpm exec playwright install chromium
+            - pnpm sentinel
+          artifacts:
+            - name: Sentinel run evidence
+              paths:
+                - runs/**
+              # The evidence matters most when the run fails.
+              capture-on: always

@@ -1,0 +1,9 @@
+node_modules/
+runs/
+.env*
+test-results/
+playwright-report/
+
+# Local agent tooling cache
+.atl/
+.pnpm-store/
